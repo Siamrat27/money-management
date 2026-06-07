@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, LOCAL_USER_ID } from '../db/db'
 import { useAuthStore } from '../stores/useAuthStore'
+import { pushPreset, deleteCloudPreset } from '../services/sync'
 import type { Preset } from '../types'
 
 function currentUserId() {
@@ -14,9 +15,18 @@ export function usePresets() {
 
 export async function addPreset(data: Omit<Preset, 'id' | 'userId'>) {
   const userId = currentUserId()
-  await db.presets.add({ id: crypto.randomUUID(), userId, ...data })
+  const preset: Preset = { id: crypto.randomUUID(), userId, ...data }
+  await db.presets.add(preset)
+  await pushPreset(preset)
+}
+
+export async function updatePreset(id: string, data: Partial<Omit<Preset, 'id' | 'userId'>>) {
+  await db.presets.update(id, data)
+  const updated = await db.presets.get(id)
+  if (updated) await pushPreset(updated)
 }
 
 export async function deletePreset(id: string) {
   await db.presets.delete(id)
+  await deleteCloudPreset(id)
 }

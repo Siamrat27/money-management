@@ -79,6 +79,22 @@ create index on public.transactions (user_id, date desc);
 create index on public.transactions (user_id, account_id);
 create index on public.recurring    (user_id, is_active, next_due_date);
 
+-- ── presets (quick-entry templates) ─────────────────────────────────────────
+create table public.presets (
+  id            text primary key,
+  user_id       uuid references auth.users(id) on delete cascade not null,
+  name          text not null,
+  type          text not null check (type in ('income','expense','transfer')),
+  amount        numeric(15,2) not null check (amount > 0),
+  account_id    text references public.accounts(id) on delete cascade not null,
+  to_account_id text references public.accounts(id) on delete set null,
+  tag_id        text references public.tags(id) on delete set null,
+  note          text not null default ''
+);
+
+alter table public.presets enable row level security;
+create policy "own presets" on public.presets for all using (auth.uid() = user_id);
+
 -- ── profiles (security: active flag + login attempt tracking) ───────────────
 create table public.profiles (
   user_id         uuid primary key references auth.users(id) on delete cascade,

@@ -5,7 +5,7 @@ import IconDisplay from '../components/ui/IconDisplay'
 import { uploadIcon, isUrlIcon } from '../lib/storage'
 import { useTags, addTag, updateTag, deleteTag } from '../hooks/useTags'
 import { useAccounts } from '../hooks/useAccounts'
-import { usePresets, addPreset, deletePreset } from '../hooks/usePresets'
+import { usePresets, addPreset, updatePreset, deletePreset } from '../hooks/usePresets'
 import { useUserSettings, saveUserSettings } from '../hooks/useSettings'
 import { useAppStore } from '../stores/useAppStore'
 import { useAuthStore } from '../stores/useAuthStore'
@@ -19,7 +19,7 @@ import Header from '../components/layout/Header'
 import { formatAmount } from '../utils/formatters'
 import { exportData, importData } from '../utils/exportImport'
 import { db } from '../db/db'
-import type { Tag, TagType, TransactionType } from '../types'
+import type { Tag, TagType, Preset, TransactionType } from '../types'
 
 const TAG_TYPES: { value: TagType; label: string }[] = [
   { value: 'expense', label: 'รายจ่าย' },
@@ -43,6 +43,7 @@ export default function Settings() {
 
   // Preset modal
   const [presetModal, setPresetModal] = useState(false)
+  const [editingPreset, setEditingPreset] = useState<Preset | null>(null)
   const [presetForm, setPresetForm] = useState({
     name: '', type: 'expense' as TransactionType, amount: '',
     accountId: '', toAccountId: '', tagId: '', note: '',
@@ -118,20 +119,32 @@ export default function Settings() {
   }
 
   function openAddPreset() {
+    setEditingPreset(null)
     setPresetForm({ name: '', type: 'expense', amount: '', accountId: accounts[0]?.id ?? '', toAccountId: '', tagId: '', note: '' })
+    setPresetModal(true)
+  }
+
+  function openEditPreset(p: Preset) {
+    setEditingPreset(p)
+    setPresetForm({
+      name: p.name, type: p.type, amount: String(p.amount),
+      accountId: p.accountId, toAccountId: p.toAccountId ?? '', tagId: p.tagId ?? '', note: p.note,
+    })
     setPresetModal(true)
   }
 
   async function handleSavePreset() {
     const amt = parseFloat(presetForm.amount)
     if (!presetForm.name.trim() || !amt || !presetForm.accountId) return
-    await addPreset({
+    const data = {
       name: presetForm.name, type: presetForm.type, amount: amt,
       accountId: presetForm.accountId,
       toAccountId: presetForm.type === 'transfer' ? presetForm.toAccountId || undefined : undefined,
       tagId: presetForm.tagId || undefined,
       note: presetForm.note,
-    })
+    }
+    if (editingPreset) await updatePreset(editingPreset.id, data)
+    else await addPreset(data)
     setPresetModal(false)
   }
 
@@ -219,18 +232,29 @@ export default function Settings() {
               {presets.map((p) => {
                 const acc = accounts.find((a) => a.id === p.accountId)
                 const tag = tags.find((t) => t.id === p.tagId)
+                const typeColor = p.type === 'income' ? '#22c55e' : p.type === 'transfer' ? '#3b82f6' : '#ef4444'
+                const typeLabel = p.type === 'income' ? 'รายรับ' : p.type === 'transfer' ? 'โอน' : 'รายจ่าย'
+                const sign = p.type === 'income' ? '+' : p.type === 'expense' ? '-' : ''
                 return (
                   <div key={p.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg bg-indigo-50 dark:bg-indigo-950">
-                      {tag?.icon ?? (p.type === 'income' ? '💰' : p.type === 'transfer' ? '↔️' : '💸')}
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg overflow-hidden flex-shrink-0" style={{ backgroundColor: typeColor + '18' }}>
+                      {tag && isUrlIcon(tag.icon)
+                        ? <img src={tag.icon} className="w-full h-full object-cover" alt="" />
+                        : (tag?.icon ?? (p.type === 'income' ? '💰' : p.type === 'transfer' ? '↔️' : '💸'))}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{p.name}</p>
-                      <p className="text-xs text-gray-400">
-                        {p.type === 'income' ? '+' : p.type === 'transfer' ? '' : '-'}฿{formatAmount(p.amount)} · {acc?.name ?? ''}
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium truncate">{p.name}</p>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0" style={{ color: typeColor, backgroundColor: typeColor + '18' }}>{typeLabel}</span>
+                      </div>
+                      <p className="text-xs text-gray-400 truncate">
+                        <span style={{ color: typeColor }} className="font-medium">{sign}฿{formatAmount(p.amount)}</span>
+                        {acc ? ` · ${acc.name}` : ''}
+                        {p.note ? ` · ${p.note}` : ''}
                       </p>
                     </div>
-                    <button onClick={() => deletePreset(p.id)} className="p-1.5 rounded-lg text-gray-400"><Trash2 size={14} /></button>
+                    <button onClick={() => openEditPreset(p)} className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-500"><Edit2 size={14} /></button>
+                    <button onClick={() => deletePreset(p.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
                   </div>
                 )
               })}
@@ -387,7 +411,7 @@ export default function Settings() {
       </Modal>
 
       {/* Preset Modal */}
-      <Modal open={presetModal} onClose={() => setPresetModal(false)} title="เพิ่มรายการด่วน">
+      <Modal open={presetModal} onClose={() => setPresetModal(false)} title={editingPreset ? 'แก้ไขรายการด่วน' : 'เพิ่มรายการด่วน'}>
         <div className="space-y-4">
           <input type="text" value={presetForm.name} onChange={(e) => setPresetForm((f) => ({ ...f, name: e.target.value }))}
             placeholder="ชื่อ preset เช่น ค่ากาแฟ..." className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none" />

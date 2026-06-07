@@ -145,20 +145,31 @@ export default function AddTransaction() {
         {/* Preset Strip */}
         {presets.length > 0 && (
           <div>
-            <label className="text-xs text-gray-500 mb-1 block">รายการด่วน</label>
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <label className="text-xs text-gray-500 mb-1.5 block">รายการด่วน</label>
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
               {presets.map((p) => {
                 const tag = tags.find((t) => t.id === p.tagId)
+                const acc = accounts.find((a) => a.id === p.accountId)
+                const typeColor = p.type === 'income' ? '#22c55e' : p.type === 'transfer' ? '#3b82f6' : '#ef4444'
+                const defaultIcon = p.type === 'income' ? '💰' : p.type === 'transfer' ? '↔️' : '💸'
+                const sign = p.type === 'income' ? '+' : p.type === 'expense' ? '-' : ''
                 return (
                   <button
                     key={p.id}
                     onClick={() => applyPreset(p)}
-                    className="flex-shrink-0 flex flex-col items-start px-3 py-2 rounded-xl border-2 border-gray-200 dark:border-gray-700 active:border-indigo-500 active:bg-indigo-50 dark:active:bg-indigo-950 transition-colors"
+                    className="flex-shrink-0 flex flex-col items-center px-3 pt-3 pb-2.5 rounded-xl border border-gray-200 dark:border-gray-700 active:scale-95 transition-all min-w-[76px] relative overflow-hidden bg-white dark:bg-gray-800"
                   >
-                    <span className="text-sm font-medium flex items-center gap-1">
-                      {tag?.icon ?? (p.type === 'income' ? '💰' : p.type === 'transfer' ? '↔️' : '💸')} {p.name}
+                    <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ backgroundColor: typeColor }} />
+                    <span className="text-2xl leading-none mb-1.5 flex items-center justify-center w-8 h-8">
+                      {tag && isUrlIcon(tag.icon)
+                        ? <img src={tag.icon} className="w-7 h-7 rounded object-cover" alt="" />
+                        : (tag?.icon ?? defaultIcon)}
                     </span>
-                    <span className="text-xs text-gray-400">฿{formatAmount(p.amount)}</span>
+                    <span className="text-xs font-medium text-center leading-tight w-full truncate">{p.name}</span>
+                    <span className="text-xs font-bold mt-0.5" style={{ color: typeColor }}>
+                      {sign}฿{formatAmount(p.amount)}
+                    </span>
+                    {acc && <span className="text-[10px] text-gray-400 mt-0.5 truncate w-full text-center">{acc.name}</span>}
                   </button>
                 )
               })}

@@ -10,29 +10,31 @@
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { db } from '../db/db'
-import type { Account, Tag, Transaction, Recurring, UserSettings } from '../types'
+import type { Account, Tag, Transaction, Recurring, Preset, UserSettings } from '../types'
 
 // ─── Pull: Supabase → Dexie ──────────────────────────────────────────────────
 
 export async function pullFromCloud(userId: string): Promise<void> {
   if (!isSupabaseConfigured) return
 
-  const [accRes, tagRes, txnRes, recRes, settingsRes] = await Promise.all([
+  const [accRes, tagRes, txnRes, recRes, settingsRes, presetsRes] = await Promise.all([
     supabase.from('accounts').select('*').eq('user_id', userId),
     supabase.from('tags').select('*').eq('user_id', userId),
     supabase.from('transactions').select('*').eq('user_id', userId),
     supabase.from('recurring').select('*').eq('user_id', userId),
     supabase.from('user_settings').select('*').eq('user_id', userId).maybeSingle(),
+    supabase.from('presets').select('*').eq('user_id', userId),
   ])
 
   if (accRes.error) throw new Error(accRes.error.message)
 
-  await db.transaction('rw', [db.accounts, db.tags, db.transactions, db.recurring, db.userSettings], async () => {
+  await db.transaction('rw', [db.accounts, db.tags, db.transactions, db.recurring, db.userSettings, db.presets], async () => {
     // Clear existing cloud-user data
     await db.accounts.where('userId').equals(userId).delete()
     await db.tags.where('userId').equals(userId).delete()
     await db.transactions.where('userId').equals(userId).delete()
     await db.recurring.where('userId').equals(userId).delete()
+    await db.presets.where('userId').equals(userId).delete()
 
     if (accRes.data?.length) {
       await db.accounts.bulkPut(accRes.data.map(rowToAccount))
@@ -48,6 +50,9 @@ export async function pullFromCloud(userId: string): Promise<void> {
     }
     if (settingsRes.data) {
       await db.userSettings.put(rowToSettings(settingsRes.data as Record<string, unknown>))
+    }
+    if (presetsRes.data?.length) {
+      await db.presets.bulkPut(presetsRes.data.map(rowToPreset))
     }
   })
 
@@ -103,6 +108,16 @@ export async function deleteCloudRecurring(id: string) {
 export async function pushUserSettings(s: UserSettings) {
   if (!isSupabaseConfigured) return
   await supabase.from('user_settings').upsert(settingsToRow(s))
+}
+
+export async function pushPreset(p: Preset) {
+  if (!isSupabaseConfigured) return
+  await supabase.from('presets').upsert(presetToRow(p))
+}
+
+export async function deleteCloudPreset(id: string) {
+  if (!isSupabaseConfigured) return
+  await supabase.from('presets').delete().eq('id', id)
 }
 
 // ─── Seed defaults for new cloud users ───────────────────────────────────────
@@ -190,6 +205,26 @@ function rowToSettings(r: Record<string, unknown>): UserSettings {
   return {
     userId: r.user_id as string,
     discordWebhook: (r.discord_webhook as string | null) ?? undefined,
+  }
+}
+
+function presetToRow(p: Preset) {
+  return {
+    id: p.id, user_id: p.userId, name: p.name, type: p.type,
+    amount: p.amount, account_id: p.accountId,
+    to_account_id: p.toAccountId ?? null,
+    tag_id: p.tagId ?? null, note: p.note,
+  }
+}
+
+function rowToPreset(r: Record<string, unknown>): Preset {
+  return {
+    id: r.id as string, userId: r.user_id as string, name: r.name as string,
+    type: r.type as Preset['type'], amount: r.amount as number,
+    accountId: r.account_id as string,
+    toAccountId: (r.to_account_id as string | null) ?? undefined,
+    tagId: (r.tag_id as string | null) ?? undefined,
+    note: r.note as string,
   }
 }
 

@@ -1,13 +1,14 @@
 import { db } from '../db/db'
 
 export async function exportData(): Promise<void> {
-  const [accounts, tags, transactions, recurring] = await Promise.all([
+  const [accounts, tags, transactions, recurring, presets] = await Promise.all([
     db.accounts.toArray(),
     db.tags.toArray(),
     db.transactions.toArray(),
     db.recurring.toArray(),
+    db.presets.toArray(),
   ])
-  const data = { accounts, tags, transactions, recurring, exportedAt: new Date().toISOString() }
+  const data = { accounts, tags, transactions, recurring, presets, exportedAt: new Date().toISOString() }
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -20,11 +21,12 @@ export async function exportData(): Promise<void> {
 export async function importData(file: File): Promise<void> {
   const text = await file.text()
   const data = JSON.parse(text)
-  await db.transaction('rw', db.accounts, db.tags, db.transactions, db.recurring, async () => {
+  await db.transaction('rw', [db.accounts, db.tags, db.transactions, db.recurring, db.presets], async () => {
     await db.accounts.clear()
     await db.tags.clear()
     await db.transactions.clear()
     await db.recurring.clear()
+    await db.presets.clear()
     if (data.accounts?.length) await db.accounts.bulkAdd(data.accounts.map((a: Record<string,unknown>) => ({ ...a, createdAt: new Date(a.createdAt as string) })))
     if (data.tags?.length) await db.tags.bulkAdd(data.tags)
     if (data.transactions?.length) await db.transactions.bulkAdd(data.transactions.map((t: Record<string,unknown>) => ({ ...t, date: new Date(t.date as string) })))
@@ -34,5 +36,6 @@ export async function importData(file: File): Promise<void> {
       nextDueDate: new Date(r.nextDueDate as string),
       endDate: r.endDate ? new Date(r.endDate as string) : undefined,
     })))
+    if (data.presets?.length) await db.presets.bulkAdd(data.presets)
   })
 }
