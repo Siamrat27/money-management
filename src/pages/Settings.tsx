@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List, LogOut, RefreshCw, Zap, Bell } from 'lucide-react'
+import IconDisplay from '../components/ui/IconDisplay'
+import { uploadIcon, isUrlIcon } from '../lib/storage'
 import { useTags, addTag, updateTag, deleteTag } from '../hooks/useTags'
 import { useAccounts } from '../hooks/useAccounts'
 import { usePresets, addPreset, deletePreset } from '../hooks/usePresets'
@@ -55,6 +57,21 @@ export default function Settings() {
 
   const fileRef = useRef<HTMLInputElement>(null)
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [iconUploading, setIconUploading] = useState(false)
+
+  async function handleTagIconUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIconUploading(true)
+    try {
+      const url = await uploadIcon(file)
+      setForm((f) => ({ ...f, icon: url }))
+    } catch (err) {
+      console.error('icon upload failed', err)
+    }
+    setIconUploading(false)
+    e.target.value = ''
+  }
 
   async function handleManualSync() {
     if (!user || !isSupabaseConfigured) return
@@ -169,8 +186,8 @@ export default function Settings() {
           <div className="space-y-2">
             {tags.map((t) => (
               <div key={t.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg" style={{ backgroundColor: t.color + '22' }}>
-                  {t.icon}
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg overflow-hidden" style={{ backgroundColor: t.color + '22' }}>
+                  <IconDisplay icon={t.icon} />
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium">{t.name}</p>
@@ -340,6 +357,15 @@ export default function Settings() {
                   {ic}
                 </button>
               ))}
+              {isUrlIcon(form.icon) && (
+                <div className="w-9 h-9 rounded-xl border-2 border-indigo-500 overflow-hidden">
+                  <img src={form.icon} className="w-full h-full object-cover" alt="" />
+                </div>
+              )}
+              <label className={`w-9 h-9 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-indigo-400 transition-colors ${iconUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                {iconUploading ? <span className="text-xs text-gray-400">...</span> : <Plus size={14} className="text-gray-400" />}
+                <input type="file" accept="image/*" className="hidden" onChange={handleTagIconUpload} />
+              </label>
             </div>
           </div>
           <div>

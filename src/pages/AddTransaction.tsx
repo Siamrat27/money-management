@@ -15,6 +15,7 @@ import AmountDisplay from '../components/ui/AmountDisplay'
 import Button from '../components/ui/Button'
 import Header from '../components/layout/Header'
 import { formatAmount } from '../utils/formatters'
+import { isUrlIcon } from '../lib/storage'
 import type { TransactionType, Frequency } from '../types'
 import { nextDueDate, frequencyLabel } from '../utils/dateHelpers'
 
@@ -206,7 +207,10 @@ export default function AddTransaction() {
                       accountId === a.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'
                     }`}
                   >
-                    <span className="flex items-center gap-1.5">{a.icon} {a.name}</span>
+                    <span className="flex items-center gap-1.5">
+                      {isUrlIcon(a.icon) ? <img src={a.icon} className="w-5 h-5 rounded object-cover flex-shrink-0" alt="" /> : a.icon}
+                      {a.name}
+                    </span>
                     <span className={`text-xs mt-0.5 ${accountId === a.id ? 'text-indigo-400' : 'text-gray-400'}`}>฿{formatAmount(bal)}</span>
                   </button>
                 )
@@ -229,7 +233,10 @@ export default function AddTransaction() {
                         toAccountId === a.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 text-blue-600' : 'border-gray-200 dark:border-gray-700'
                       }`}
                     >
-                      <span className="flex items-center gap-1.5">{a.icon} {a.name}</span>
+                      <span className="flex items-center gap-1.5">
+                        {isUrlIcon(a.icon) ? <img src={a.icon} className="w-5 h-5 rounded object-cover flex-shrink-0" alt="" /> : a.icon}
+                        {a.name}
+                      </span>
                       <span className={`text-xs mt-0.5 ${toAccountId === a.id ? 'text-blue-400' : 'text-gray-400'}`}>฿{formatAmount(bal)}</span>
                     </button>
                   )
@@ -252,7 +259,8 @@ export default function AddTransaction() {
                     }`}
                     style={tagId === tag.id ? { borderColor: tag.color, backgroundColor: tag.color + '11', color: tag.color } : {}}
                   >
-                    <span>{tag.icon}</span>{tag.name}
+                    {isUrlIcon(tag.icon) ? <img src={tag.icon} className="w-5 h-5 rounded object-cover flex-shrink-0" alt="" /> : <span>{tag.icon}</span>}
+                    {tag.name}
                   </button>
                 ))}
               </div>

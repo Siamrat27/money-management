@@ -12,6 +12,7 @@ import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import Button from '../components/ui/Button'
+import IconDisplay from '../components/ui/IconDisplay'
 import Header from '../components/layout/Header'
 import { formatCurrency, formatAmount } from '../utils/formatters'
 import { formatDate, formatDateShort, getMonthRange, getYearRange, getDayRange, today } from '../utils/dateHelpers'
@@ -284,9 +285,9 @@ function TransactionRow({ t, tag, account, toAccount }: { t: Transaction; tag?: 
   const isTransfer = t.type === 'transfer'
   return (
     <div className="flex items-center gap-3 px-4 py-3 border-t border-gray-50 dark:border-gray-800">
-      <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
+      <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl flex-shrink-0 overflow-hidden"
         style={{ backgroundColor: (tag?.color ?? '#6366f1') + '22' }}>
-        {isTransfer ? '↔️' : tag?.icon ?? '💸'}
+        <IconDisplay icon={isTransfer ? '↔️' : tag?.icon ?? '💸'} />
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm truncate">{t.note || tag?.name || (isTransfer ? 'โอนเงิน' : '-')}</p>

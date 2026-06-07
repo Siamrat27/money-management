@@ -6,6 +6,7 @@ import { useTags } from '../hooks/useTags'
 import Card from '../components/ui/Card'
 import Header from '../components/layout/Header'
 import { formatAmount, formatCurrency } from '../utils/formatters'
+import { isUrlIcon } from '../lib/storage'
 import { getDayRange, getMonthRange, getYearRange, formatDate } from '../utils/dateHelpers'
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts'
 import { format, eachDayOfInterval, eachMonthOfInterval } from 'date-fns'
@@ -118,7 +119,7 @@ export default function Reports() {
           {accounts.map((a) => (
             <button key={a.id} onClick={() => setAccountFilter(a.id)}
               className={`px-3 py-1.5 rounded-xl text-sm font-medium border-2 ${accountFilter === a.id ? 'border-indigo-500 text-indigo-600 bg-indigo-50 dark:bg-indigo-950' : 'border-gray-200 dark:border-gray-700'}`}>
-              {a.icon} {a.name}
+              {isUrlIcon(a.icon) ? <img src={a.icon} className="w-4 h-4 rounded object-cover inline mr-0.5" alt="" /> : a.icon} {a.name}
             </button>
           ))}
         </div>

@@ -8,8 +8,10 @@ import Modal from '../components/ui/Modal'
 import Button from '../components/ui/Button'
 import Numpad from '../components/ui/Numpad'
 import AmountDisplay from '../components/ui/AmountDisplay'
+import IconDisplay from '../components/ui/IconDisplay'
 import Header from '../components/layout/Header'
 import { formatAmount } from '../utils/formatters'
+import { uploadIcon, isUrlIcon } from '../lib/storage'
 import type { Account, AccountType } from '../types'
 
 const ACCOUNT_TYPES: { value: AccountType; label: string; icon: string }[] = [
@@ -48,6 +50,7 @@ export default function Accounts() {
   const [form, setForm] = useState({ name: '', type: 'cash' as AccountType, color: COLORS[0], icon: ICONS[0] })
   const [currentBalance, setCurrentBalance] = useState(0)
   const [balanceTarget, setBalanceTarget] = useState('')
+  const [iconUploading, setIconUploading] = useState(false)
   const [fromId, setFromId] = useState<string | null>(null)
   const [toId, setToId] = useState<string | null>(null)
   const [transferAmt, setTransferAmt] = useState('0')
@@ -97,6 +100,20 @@ export default function Accounts() {
     if (confirm(`ลบบัญชี "${a.name}"?`)) await deleteAccount(a.id)
   }
 
+  async function handleIconUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIconUploading(true)
+    try {
+      const url = await uploadIcon(file)
+      setForm((f) => ({ ...f, icon: url }))
+    } catch (err) {
+      console.error('icon upload failed', err)
+    }
+    setIconUploading(false)
+    e.target.value = ''
+  }
+
   async function handleTransfer() {
     const amt = parseFloat(transferAmt)
     if (!amt || !fromId || !toId || fromId === toId) return
@@ -133,8 +150,8 @@ export default function Accounts() {
         {accounts.map((a) => (
           <Card key={a.id} className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{ backgroundColor: a.color + '22' }}>
-                {a.icon}
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl overflow-hidden" style={{ backgroundColor: a.color + '22' }}>
+                <IconDisplay icon={a.icon} />
               </div>
               <div className="flex-1">
                 <p className="font-semibold">{a.name}</p>
@@ -200,6 +217,15 @@ export default function Accounts() {
                   {ic}
                 </button>
               ))}
+              {isUrlIcon(form.icon) && (
+                <div className="w-10 h-10 rounded-xl border-2 border-indigo-500 overflow-hidden">
+                  <img src={form.icon} className="w-full h-full object-cover" alt="" />
+                </div>
+              )}
+              <label className={`w-10 h-10 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-indigo-400 transition-colors ${iconUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                {iconUploading ? <span className="text-xs text-gray-400">...</span> : <Plus size={16} className="text-gray-400" />}
+                <input type="file" accept="image/*" className="hidden" onChange={handleIconUpload} />
+              </label>
             </div>
           </div>
           <div>
