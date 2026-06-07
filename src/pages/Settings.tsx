@@ -1,12 +1,14 @@
-import { useState, useRef } from 'react'
-import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List, LogOut, RefreshCw, Zap } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List, LogOut, RefreshCw, Zap, Bell } from 'lucide-react'
 import { useTags, addTag, updateTag, deleteTag } from '../hooks/useTags'
 import { useAccounts } from '../hooks/useAccounts'
 import { usePresets, addPreset, deletePreset } from '../hooks/usePresets'
+import { useUserSettings, saveUserSettings } from '../hooks/useSettings'
 import { useAppStore } from '../stores/useAppStore'
 import { useAuthStore } from '../stores/useAuthStore'
 import { pullFromCloud } from '../services/sync'
 import { isSupabaseConfigured } from '../lib/supabase'
+import { sendTestDiscord } from '../lib/discord'
 import Card from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import Button from '../components/ui/Button'
@@ -43,6 +45,14 @@ export default function Settings() {
     accountId: '', toAccountId: '', tagId: '', note: '',
   })
 
+  const userSettings = useUserSettings()
+  const [discordInput, setDiscordInput] = useState('')
+  const [discordStatus, setDiscordStatus] = useState<'idle' | 'saving' | 'saved' | 'testing' | 'ok' | 'fail'>('idle')
+
+  useEffect(() => {
+    setDiscordInput(userSettings?.discordWebhook ?? '')
+  }, [userSettings?.discordWebhook])
+
   const fileRef = useRef<HTMLInputElement>(null)
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
@@ -72,6 +82,21 @@ export default function Settings() {
     if (editing) await updateTag(editing.id, data)
     else await addTag(data)
     setModal(false)
+  }
+
+  async function handleSaveDiscord() {
+    setDiscordStatus('saving')
+    await saveUserSettings({ discordWebhook: discordInput.trim() || undefined })
+    setDiscordStatus('saved')
+    setTimeout(() => setDiscordStatus('idle'), 2000)
+  }
+
+  async function handleTestDiscord() {
+    if (!discordInput.trim()) return
+    setDiscordStatus('testing')
+    const ok = await sendTestDiscord(discordInput.trim())
+    setDiscordStatus(ok ? 'ok' : 'fail')
+    setTimeout(() => setDiscordStatus('idle'), 3000)
   }
 
   function openAddPreset() {
@@ -226,6 +251,47 @@ export default function Settings() {
             </Button>
           </Card>
         )}
+
+        {/* Discord Notifications */}
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Bell size={18} className="text-indigo-500" />
+            <p className="font-semibold">แจ้งเตือน Discord</p>
+          </div>
+          <p className="text-xs text-gray-400">วาง Webhook URL จาก Discord เพื่อรับแจ้งเตือนทุก transaction และเมื่อเกินงบประมาณ</p>
+          <div className="space-y-2">
+            <input
+              type="url"
+              value={discordInput}
+              onChange={(e) => { setDiscordInput(e.target.value); setDiscordStatus('idle') }}
+              placeholder="https://discord.com/api/webhooks/..."
+              className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none focus:border-indigo-400 font-mono"
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                onClick={handleTestDiscord}
+                className="flex-1 text-sm"
+              >
+                {discordStatus === 'testing' ? '⏳ กำลังทดสอบ...' : '🔔 ทดสอบ'}
+              </Button>
+              <Button
+                fullWidth
+                onClick={handleSaveDiscord}
+                className="flex-1 text-sm"
+              >
+                {discordStatus === 'saving' ? 'กำลังบันทึก...' : 'บันทึก'}
+              </Button>
+            </div>
+            {discordStatus === 'saved' && <p className="text-xs text-green-500 text-center">✓ บันทึกแล้ว</p>}
+            {discordStatus === 'ok' && <p className="text-xs text-green-500 text-center">✅ ส่งสำเร็จ! เช็ค Discord ได้เลย</p>}
+            {discordStatus === 'fail' && <p className="text-xs text-red-500 text-center">❌ ส่งไม่ได้ — ตรวจสอบ URL อีกครั้ง</p>}
+          </div>
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 space-y-1">
+            <p className="text-xs font-medium text-gray-500">วิธีสร้าง Webhook URL:</p>
+            <p className="text-xs text-gray-400">Discord → Channel Settings → Integrations → Webhooks → New Webhook → Copy URL</p>
+          </div>
+        </Card>
 
         {/* Danger Zone */}
         <Card className="p-4 space-y-3 border border-red-100 dark:border-red-900">

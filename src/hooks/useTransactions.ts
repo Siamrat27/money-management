@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, LOCAL_USER_ID } from '../db/db'
 import { useAuthStore } from '../stores/useAuthStore'
 import { pushTransaction, deleteCloudTransaction } from '../services/sync'
+import { notifyNewTransaction } from '../lib/discord'
 import type { Transaction } from '../types'
 
 function currentUserId(): string {
@@ -31,6 +32,7 @@ export async function addTransaction(data: Omit<Transaction, 'id' | 'userId'>) {
   const record: Transaction = { ...data, id: crypto.randomUUID(), userId: currentUserId() }
   await db.transactions.add(record)
   pushTransaction(record).catch(console.error)
+  notifyNewTransaction(record).catch(console.error)
   return record.id
 }
 

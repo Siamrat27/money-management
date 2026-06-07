@@ -54,17 +54,25 @@ create table public.recurring (
   is_active     boolean not null default true
 );
 
+-- ── user_settings ────────────────────────────────────────────────────────────
+create table public.user_settings (
+  user_id          uuid primary key references auth.users(id) on delete cascade,
+  discord_webhook  text default null
+);
+
 -- ── Row Level Security ───────────────────────────────────────────────────────
-alter table public.accounts    enable row level security;
-alter table public.tags        enable row level security;
-alter table public.transactions enable row level security;
-alter table public.recurring   enable row level security;
+alter table public.accounts      enable row level security;
+alter table public.tags          enable row level security;
+alter table public.transactions  enable row level security;
+alter table public.recurring     enable row level security;
+alter table public.user_settings enable row level security;
 
 -- Each user can only see/modify their own rows
-create policy "own accounts"     on public.accounts    for all using (auth.uid() = user_id);
-create policy "own tags"         on public.tags        for all using (auth.uid() = user_id);
-create policy "own transactions" on public.transactions for all using (auth.uid() = user_id);
-create policy "own recurring"    on public.recurring   for all using (auth.uid() = user_id);
+create policy "own accounts"      on public.accounts      for all using (auth.uid() = user_id);
+create policy "own tags"          on public.tags          for all using (auth.uid() = user_id);
+create policy "own transactions"  on public.transactions  for all using (auth.uid() = user_id);
+create policy "own recurring"     on public.recurring     for all using (auth.uid() = user_id);
+create policy "own user_settings" on public.user_settings for all using (auth.uid() = user_id);
 
 -- ── Indexes for common query patterns ───────────────────────────────────────
 create index on public.transactions (user_id, date desc);

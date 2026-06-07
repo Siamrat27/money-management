@@ -64,5 +64,10 @@ export interface Recurring {
   isActive: boolean
 }
 
+export interface UserSettings {
+  userId: string
+  discordWebhook?: string
+}
+
 export type Page = 'dashboard' | 'add' | 'calendar' | 'reports' | 'settings'
 export type SubPage = 'transactions' | 'accounts' | 'recurring' | null
