@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Wallet, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuthStore } from '../stores/useAuthStore'
 import Button from '../components/ui/Button'
+import { APP_VERSION } from '../version'
 
 export default function Login() {
   const { signIn, signUp } = useAuthStore()
@@ -50,6 +51,7 @@ export default function Login() {
           </div>
           <h1 className="text-2xl font-bold">PocketFlow</h1>
           <p className="text-gray-400 text-sm mt-1">บันทึกรายรับรายจ่ายส่วนตัว</p>
+          <p className="text-gray-300 dark:text-gray-600 text-xs mt-0.5">v{APP_VERSION}</p>
         </div>
 
         {/* Card */}
