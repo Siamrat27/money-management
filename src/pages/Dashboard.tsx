@@ -89,6 +89,29 @@ function useSavingsSummary() {
   }, [userId]) ?? { trend: [], thisMonth: 0, lastMonth: 0, changePercent: 0 }
 }
 
+function useNetWorthTrend() {
+  const userId = useAuthStore((s) => s.user?.id ?? LOCAL_USER_ID)
+  return useLiveQuery(async () => {
+    const now = new Date()
+    // All non-transfer transactions (transfers don't change total net worth)
+    const allTxns = await db.transactions
+      .where('userId').equals(userId)
+      .filter((t) => t.type !== 'transfer')
+      .toArray()
+
+    return Array.from({ length: 30 }, (_, i) => {
+      const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (29 - i), 23, 59, 59, 999)
+      const balance = allTxns
+        .filter((t) => t.date <= day)
+        .reduce((sum, t) => t.type === 'income' ? sum + t.amount : sum - t.amount, 0)
+      return {
+        name: i % 7 === 0 || i === 29 ? format(day, 'd MMM', { locale: th }) : '',
+        balance,
+      }
+    })
+  }, [userId]) ?? []
+}
+
 export default function Dashboard() {
   const [period, setPeriod] = useState<Period>('month')
   const { setPage, setSubPage } = useAppStore()
@@ -109,6 +132,7 @@ export default function Dashboard() {
   }, [recurring.length])
 
   const savings = useSavingsSummary()
+  const netWorthData = useNetWorthTrend()
   const totalBalance = accounts.reduce((sum, acc) => sum + useAccountBalanceStatic(acc.id, allTxns), 0)
 
   function getTag(id?: string) { return tags.find((t) => t.id === id) }
@@ -229,6 +253,45 @@ export default function Dashboard() {
                 <Bar dataKey="expense" name="รายจ่าย" fill="#ef4444" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+          </Card>
+        )}
+
+        {/* Net Worth History — 30 days */}
+        {netWorthData.length > 0 && netWorthData.some((d) => d.balance !== 0) && (
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">Net Worth ย้อนหลัง 30 วัน</p>
+              <div className="text-right">
+                {(() => {
+                  const first = netWorthData[0]?.balance ?? 0
+                  const last  = netWorthData[netWorthData.length - 1]?.balance ?? 0
+                  const diff  = last - first
+                  return diff !== 0 ? (
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${diff >= 0 ? 'bg-green-100 dark:bg-green-950 text-green-600' : 'bg-red-100 dark:bg-red-950 text-red-500'}`}>
+                      {diff >= 0 ? '+' : ''}฿{formatAmount(Math.abs(diff))}
+                    </span>
+                  ) : null
+                })()}
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={100}>
+              <AreaChart data={netWorthData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="netWorthGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#14b8a6" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area type="monotone" dataKey="balance" stroke="#14b8a6" strokeWidth={2} fill="url(#netWorthGrad)" dot={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+                <YAxis hide />
+                <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 12, fontSize: 11, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+              </AreaChart>
+            </ResponsiveContainer>
+            <div className="flex justify-between mt-1 text-xs text-gray-400">
+              <span>30 วันที่แล้ว: ฿{formatAmount(netWorthData[0]?.balance ?? 0)}</span>
+              <span className="text-teal-500 font-medium">วันนี้: ฿{formatAmount(netWorthData[netWorthData.length - 1]?.balance ?? 0)}</span>
+            </div>
           </Card>
         )}
 
