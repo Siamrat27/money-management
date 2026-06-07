@@ -136,7 +136,9 @@ export default function Dashboard() {
           <div className="mt-3 flex gap-3 flex-wrap">
             {accounts.map((acc) => (
               <div key={acc.id} className="flex items-center gap-1.5">
-                <span>{acc.icon}</span>
+                <span className="w-5 h-5 rounded overflow-hidden inline-flex items-center justify-center flex-shrink-0">
+                  <IconDisplay icon={acc.icon} />
+                </span>
                 <div>
                   <p className="text-xs text-indigo-200">{acc.name}</p>
                   <p className="text-sm font-semibold">฿{formatAmount(useAccountBalanceStatic(acc.id, allTxns))}</p>

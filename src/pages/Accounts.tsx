@@ -281,7 +281,7 @@ export default function Accounts() {
               {accounts.map((a) => (
                 <button key={a.id} onClick={() => { setFromId(a.id); setTransferInsufficient(false) }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${fromId === a.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'}`}>
-                  {a.icon} {a.name}
+                  {isUrlIcon(a.icon) ? <img src={a.icon} className="w-4 h-4 rounded object-cover flex-shrink-0" alt="" /> : a.icon} {a.name}
                 </button>
               ))}
             </div>
@@ -292,7 +292,7 @@ export default function Accounts() {
               {accounts.filter((a) => a.id !== fromId).map((a) => (
                 <button key={a.id} onClick={() => setToId(a.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${toId === a.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 text-blue-600' : 'border-gray-200 dark:border-gray-700'}`}>
-                  {a.icon} {a.name}
+                  {isUrlIcon(a.icon) ? <img src={a.icon} className="w-4 h-4 rounded object-cover flex-shrink-0" alt="" /> : a.icon} {a.name}
                 </button>
               ))}
             </div>

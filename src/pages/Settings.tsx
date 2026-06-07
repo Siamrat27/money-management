@@ -409,7 +409,7 @@ export default function Settings() {
               {accounts.map((a) => (
                 <button key={a.id} onClick={() => setPresetForm((f) => ({ ...f, accountId: a.id }))}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${presetForm.accountId === a.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'}`}>
-                  {a.icon} {a.name}
+                  {isUrlIcon(a.icon) ? <img src={a.icon} className="w-4 h-4 rounded object-cover flex-shrink-0" alt="" /> : a.icon} {a.name}
                 </button>
               ))}
             </div>
@@ -421,7 +421,7 @@ export default function Settings() {
                 {accounts.filter((a) => a.id !== presetForm.accountId).map((a) => (
                   <button key={a.id} onClick={() => setPresetForm((f) => ({ ...f, toAccountId: a.id }))}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${presetForm.toAccountId === a.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 text-blue-600' : 'border-gray-200 dark:border-gray-700'}`}>
-                    {a.icon} {a.name}
+                    {isUrlIcon(a.icon) ? <img src={a.icon} className="w-4 h-4 rounded object-cover flex-shrink-0" alt="" /> : a.icon} {a.name}
                   </button>
                 ))}
               </div>
@@ -434,7 +434,7 @@ export default function Settings() {
                 {tags.filter((t) => presetForm.type === 'income' ? t.type !== 'expense' : t.type !== 'income').map((t) => (
                   <button key={t.id} onClick={() => setPresetForm((f) => ({ ...f, tagId: f.tagId === t.id ? '' : t.id }))}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${presetForm.tagId === t.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'}`}>
-                    {t.icon} {t.name}
+                    {isUrlIcon(t.icon) ? <img src={t.icon} className="w-4 h-4 rounded object-cover flex-shrink-0" alt="" /> : t.icon} {t.name}
                   </button>
                 ))}
               </div>

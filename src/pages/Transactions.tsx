@@ -10,6 +10,7 @@ import Badge from '../components/ui/Badge'
 import { formatCurrency, formatAmount } from '../utils/formatters'
 import { formatDate } from '../utils/dateHelpers'
 import IconDisplay from '../components/ui/IconDisplay'
+import { isUrlIcon } from '../lib/storage'
 import type { Transaction } from '../types'
 
 export default function Transactions() {
@@ -96,8 +97,8 @@ export default function Transactions() {
                 </button>
                 {accounts.map((a) => (
                   <button key={a.id} onClick={() => setFilterAccount(a.id)}
-                    className={`px-3 py-1 rounded-xl text-sm font-medium border-2 ${filterAccount === a.id ? 'border-indigo-500 text-indigo-600 bg-indigo-50 dark:bg-indigo-950' : 'border-gray-200 dark:border-gray-700'}`}>
-                    {a.icon} {a.name}
+                    className={`flex items-center gap-1 px-3 py-1 rounded-xl text-sm font-medium border-2 ${filterAccount === a.id ? 'border-indigo-500 text-indigo-600 bg-indigo-50 dark:bg-indigo-950' : 'border-gray-200 dark:border-gray-700'}`}>
+                    {isUrlIcon(a.icon) ? <img src={a.icon} className="w-4 h-4 rounded object-cover flex-shrink-0" alt="" /> : a.icon} {a.name}
                   </button>
                 ))}
               </div>
@@ -111,8 +112,8 @@ export default function Transactions() {
                 </button>
                 {tags.map((t) => (
                   <button key={t.id} onClick={() => setFilterTag(t.id)}
-                    className={`px-3 py-1 rounded-xl text-sm font-medium border-2 ${filterTag === t.id ? 'border-indigo-500 text-indigo-600 bg-indigo-50 dark:bg-indigo-950' : 'border-gray-200 dark:border-gray-700'}`}>
-                    {t.icon} {t.name}
+                    className={`flex items-center gap-1 px-3 py-1 rounded-xl text-sm font-medium border-2 ${filterTag === t.id ? 'border-indigo-500 text-indigo-600 bg-indigo-50 dark:bg-indigo-950' : 'border-gray-200 dark:border-gray-700'}`}>
+                    {isUrlIcon(t.icon) ? <img src={t.icon} className="w-4 h-4 rounded object-cover flex-shrink-0" alt="" /> : t.icon} {t.name}
                   </button>
                 ))}
               </div>
