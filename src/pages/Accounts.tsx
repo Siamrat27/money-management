@@ -46,6 +46,8 @@ export default function Accounts() {
   const [modal, setModal] = useState<'add' | 'edit' | 'transfer' | null>(null)
   const [editing, setEditing] = useState<Account | null>(null)
   const [form, setForm] = useState({ name: '', type: 'cash' as AccountType, color: COLORS[0], icon: ICONS[0] })
+  const [currentBalance, setCurrentBalance] = useState(0)
+  const [balanceTarget, setBalanceTarget] = useState('')
   const [fromId, setFromId] = useState<string | null>(null)
   const [toId, setToId] = useState<string | null>(null)
   const [transferAmt, setTransferAmt] = useState('0')
@@ -58,16 +60,36 @@ export default function Accounts() {
     setModal('add')
   }
 
-  function openEdit(a: Account) {
+  async function openEdit(a: Account) {
     setEditing(a)
     setForm({ name: a.name, type: a.type, color: a.color, icon: a.icon })
+    setBalanceTarget('')
+    const bal = await getAccountBalance(a.id)
+    setCurrentBalance(bal)
     setModal('edit')
   }
 
   async function handleSave() {
     if (!form.name.trim()) return
-    if (editing) await updateAccount(editing.id, form)
-    else await addAccount({ ...form, createdAt: new Date() })
+    if (editing) {
+      await updateAccount(editing.id, form)
+      if (balanceTarget !== '') {
+        const target = parseFloat(balanceTarget)
+        if (!isNaN(target) && target !== currentBalance) {
+          const diff = target - currentBalance
+          await addTransaction({
+            type: diff > 0 ? 'income' : 'expense',
+            amount: Math.abs(diff),
+            accountId: editing.id,
+            note: 'ปรับยอดบัญชี',
+            date: new Date(),
+            isRecurring: false,
+          })
+        }
+      }
+    } else {
+      await addAccount({ ...form, createdAt: new Date() })
+    }
     setModal(null)
   }
 
@@ -190,6 +212,31 @@ export default function Accounts() {
               ))}
             </div>
           </div>
+          {modal === 'edit' && (
+            <div>
+              <label className="text-sm text-gray-500 block mb-1">ปรับยอดเงิน</label>
+              <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-2">
+                <p className="text-xs text-gray-400">
+                  ยอดปัจจุบัน: <span className={`font-semibold ${currentBalance >= 0 ? 'text-gray-700 dark:text-gray-200' : 'text-red-500'}`}>฿{formatAmount(currentBalance)}</span>
+                </p>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-sm text-gray-400">฿</span>
+                  <input
+                    type="number"
+                    value={balanceTarget}
+                    onChange={(e) => setBalanceTarget(e.target.value)}
+                    placeholder={`${formatAmount(currentBalance)} (ไม่เปลี่ยน)`}
+                    className="w-full pl-7 pr-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm outline-none focus:border-indigo-400"
+                  />
+                </div>
+                {balanceTarget !== '' && !isNaN(parseFloat(balanceTarget)) && parseFloat(balanceTarget) !== currentBalance && (
+                  <p className="text-xs text-indigo-500 font-medium">
+                    → จะบันทึก{parseFloat(balanceTarget) > currentBalance ? 'รายรับ' : 'รายจ่าย'}ปรับยอด ฿{formatAmount(Math.abs(parseFloat(balanceTarget) - currentBalance))}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
           <div className="flex gap-3">
             <Button variant="secondary" onClick={() => setModal(null)}>ยกเลิก</Button>
             <Button fullWidth onClick={handleSave}>บันทึก</Button>
