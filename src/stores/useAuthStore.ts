@@ -31,13 +31,51 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   signIn: async (email, password) => {
     if (!isSupabaseConfigured) return 'Supabase ยังไม่ได้ตั้งค่า'
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return error?.message ?? null
+
+    const trimmed = email.trim().toLowerCase()
+    const { data, error } = await supabase.auth.signInWithPassword({ email: trimmed, password })
+
+    if (error) {
+      // Fire-and-forget: record the failure server-side for lockout tracking
+      void Promise.resolve(supabase.rpc('record_failed_login', { p_email: trimmed }))
+      return error.message
+    }
+
+    if (data.user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('active, locked_until')
+        .eq('user_id', data.user.id)
+        .maybeSingle()
+
+      if (profile) {
+        if (profile.locked_until && new Date(profile.locked_until) > new Date()) {
+          await supabase.auth.signOut()
+          const secsLeft = Math.ceil((new Date(profile.locked_until).getTime() - Date.now()) / 1000)
+          const label = secsLeft >= 60 ? `${Math.ceil(secsLeft / 60)} นาที` : `${secsLeft} วินาที`
+          return `บัญชีถูกล็อคชั่วคราว กรุณารออีก ${label}`
+        }
+
+        if (!profile.active) {
+          await supabase.auth.signOut()
+          return 'บัญชีถูกระงับ กรุณาติดต่อผู้ดูแลระบบ'
+        }
+      }
+
+      void Promise.resolve(supabase.rpc('reset_failed_login', { p_user_id: data.user.id }))
+    }
+
+    return null
   },
 
   signUp: async (email, password) => {
     if (!isSupabaseConfigured) return 'Supabase ยังไม่ได้ตั้งค่า'
-    const { error } = await supabase.auth.signUp({ email, password })
+
+    const trimmed = email.trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmed)) return 'รูปแบบอีเมลไม่ถูกต้อง'
+    if (password.length < 6) return 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'
+
+    const { error } = await supabase.auth.signUp({ email: trimmed, password })
     return error?.message ?? null
   },
 

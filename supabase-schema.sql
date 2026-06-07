@@ -78,3 +78,75 @@ create policy "own user_settings" on public.user_settings for all using (auth.ui
 create index on public.transactions (user_id, date desc);
 create index on public.transactions (user_id, account_id);
 create index on public.recurring    (user_id, is_active, next_due_date);
+
+-- ── profiles (security: active flag + login attempt tracking) ───────────────
+create table public.profiles (
+  user_id         uuid primary key references auth.users(id) on delete cascade,
+  active          boolean      not null default true,
+  failed_attempts integer      not null default 0,
+  locked_until    timestamptz,
+  updated_at      timestamptz  not null default now()
+);
+
+alter table public.profiles enable row level security;
+
+-- Users can read their own profile (needed for active/locked check after sign-in)
+create policy "own profile read"   on public.profiles for select using (auth.uid() = user_id);
+-- Active flag and locked_until are managed by security-definer RPCs only (not directly writable by users)
+
+-- Auto-create a profile row whenever a new user signs up
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.profiles (user_id)
+  values (new.id)
+  on conflict (user_id) do nothing;
+  return new;
+end;
+$$;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- Record a failed login attempt; auto-lock after thresholds; auto-ban after 20
+-- security definer so anon role can call it without direct table access
+create or replace function public.record_failed_login(p_email text)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  v_user_id uuid;
+begin
+  select id into v_user_id from auth.users where email = lower(trim(p_email));
+  if v_user_id is null then return; end if;
+
+  update public.profiles
+  set
+    failed_attempts = failed_attempts + 1,
+    locked_until = case
+      when failed_attempts + 1 >= 20 then now() + interval '24 hours'
+      when failed_attempts + 1 >= 10 then now() + interval '30 minutes'
+      when failed_attempts + 1 >= 5  then now() + interval '15 minutes'
+      else locked_until
+    end,
+    active = case
+      when failed_attempts + 1 >= 20 then false
+      else active
+    end,
+    updated_at = now()
+  where user_id = v_user_id;
+end;
+$$;
+
+-- Reset failed attempts on successful login
+create or replace function public.reset_failed_login(p_user_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update public.profiles
+  set failed_attempts = 0, locked_until = null, updated_at = now()
+  where user_id = p_user_id;
+end;
+$$;
+
+-- Grant anon/authenticated roles permission to call the RPCs
+grant execute on function public.record_failed_login(text) to anon, authenticated;
+grant execute on function public.reset_failed_login(uuid) to authenticated;
