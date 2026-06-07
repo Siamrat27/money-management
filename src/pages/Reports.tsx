@@ -123,7 +123,7 @@ export default function Reports() {
     return []
   }, [period, from.getTime(), to.getTime(), userId]) ?? []
 
-  const barSize = period === 'month' || (period === 'custom' && diffDays <= 31) ? 6 : 14
+  const barCatGap = period === 'day' ? '30%' : period === 'month' || (period === 'custom' && diffDays <= 62) ? '25%' : '20%'
 
   return (
     <div className="min-h-screen pb-nav">
@@ -236,10 +236,11 @@ export default function Reports() {
           <Card className="p-4">
             <p className="text-sm font-semibold text-gray-500 mb-3">แนวโน้ม</p>
             <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={trendData} barSize={barSize} barGap={2}>
+              <BarChart data={trendData} barCategoryGap={barCatGap} barGap={2} maxBarSize={18} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                 <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis hide />
+                <YAxis tickFormatter={(v: number) => v >= 1_000_000 ? `${(v/1_000_000).toFixed(1)}M` : v >= 10_000 ? `${(v/1_000).toFixed(0)}k` : v >= 1_000 ? `${(v/1_000).toFixed(1)}k` : `${v}`}
+                  tick={{ fontSize: 9 }} axisLine={false} tickLine={false} width={30} />
                 <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 12, fontSize: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
                 <Bar dataKey="income"  name="รายรับ"  fill="#22c55e" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="expense" name="รายจ่าย" fill="#ef4444" radius={[4, 4, 0, 0]} />

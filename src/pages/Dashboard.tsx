@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ArrowUpCircle, ArrowDownCircle, Wallet, ChevronRight, Bell } from 'lucide-react'
-import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, LOCAL_USER_ID } from '../db/db'
 import { useAuthStore } from '../stores/useAuthStore'
@@ -240,8 +240,8 @@ export default function Dashboard() {
         {chartData.length > 0 && (
           <Card className="p-4">
             <p className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">รายรับ/รายจ่าย 6 เดือน</p>
-            <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={chartData} barSize={10} barGap={2}>
+            <ResponsiveContainer width="100%" height={185}>
+              <BarChart data={chartData} barCategoryGap="22%" barGap={4} margin={{ top: 16, right: 4, left: 4, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis hide />
@@ -249,8 +249,14 @@ export default function Dashboard() {
                   formatter={(v: number) => formatCurrency(v)}
                   contentStyle={{ borderRadius: 12, fontSize: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
                 />
-                <Bar dataKey="income" name="รายรับ" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expense" name="รายจ่าย" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="income" name="รายรับ" fill="#22c55e" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="income" position="top" style={{ fontSize: 8.5, fill: '#16a34a', fontWeight: 600 }}
+                    formatter={(v: number) => v > 0 ? (v >= 1_000_000 ? `${(v/1_000_000).toFixed(1)}M` : v >= 10_000 ? `${(v/1_000).toFixed(0)}k` : v >= 1_000 ? `${(v/1_000).toFixed(1)}k` : `${Math.round(v)}`) : ''} />
+                </Bar>
+                <Bar dataKey="expense" name="รายจ่าย" fill="#ef4444" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="expense" position="top" style={{ fontSize: 8.5, fill: '#dc2626', fontWeight: 600 }}
+                    formatter={(v: number) => v > 0 ? (v >= 1_000_000 ? `${(v/1_000_000).toFixed(1)}M` : v >= 10_000 ? `${(v/1_000).toFixed(0)}k` : v >= 1_000 ? `${(v/1_000).toFixed(1)}k` : `${Math.round(v)}`) : ''} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </Card>
