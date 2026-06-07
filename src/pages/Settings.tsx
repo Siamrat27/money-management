@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { APP_VERSION } from '../version'
 import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List, LogOut, RefreshCw, Zap, Bell } from 'lucide-react'
 import IconDisplay from '../components/ui/IconDisplay'
 import { uploadIcon, isUrlIcon } from '../lib/storage'
@@ -319,7 +320,7 @@ export default function Settings() {
           <Button variant="danger" fullWidth onClick={handleClear}>ลบรายการทั้งหมด</Button>
         </Card>
 
-        <p className="text-center text-xs text-gray-300 pb-4">PocketFlow v1.0 · {isSupabaseConfigured ? `☁️ ซิงค์ผ่าน Supabase` : '📱 โหมดใช้งานในเครื่อง'}</p>
+        <p className="text-center text-xs text-gray-300 pb-4">PocketFlow v{APP_VERSION} · {isSupabaseConfigured ? `☁️ ซิงค์ผ่าน Supabase` : '📱 โหมดใช้งานในเครื่อง'}</p>
       </div>
 
       {/* Tag Modal */}
