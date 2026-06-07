@@ -4,7 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import { useAppStore } from '../stores/useAppStore'
-import { useAccounts, useAccountBalance } from '../hooks/useAccounts'
+import { useAccounts } from '../hooks/useAccounts'
 import { useTransactions } from '../hooks/useTransactions'
 import { useTags } from '../hooks/useTags'
 import { useRecurring, checkAndProcessRecurring, confirmRecurring, skipRecurring } from '../hooks/useRecurring'
@@ -74,10 +74,10 @@ export default function Dashboard() {
     })
   }, [recurring.length])
 
-  const totalBalance = accounts.reduce((sum, acc) => sum + useAccountBalanceStatic(acc.id!, allTxns), 0)
+  const totalBalance = accounts.reduce((sum, acc) => sum + useAccountBalanceStatic(acc.id, allTxns), 0)
 
-  function getTag(id?: number) { return tags.find((t) => t.id === id) }
-  function getAccount(id?: number) { return accounts.find((a) => a.id === id) }
+  function getTag(id?: string) { return tags.find((t) => t.id === id) }
+  function getAccount(id?: string) { return accounts.find((a) => a.id === id) }
 
   return (
     <div className="min-h-screen pb-nav">
@@ -104,7 +104,7 @@ export default function Dashboard() {
                 <span>{acc.icon}</span>
                 <div>
                   <p className="text-xs text-indigo-200">{acc.name}</p>
-                  <p className="text-sm font-semibold">฿{formatAmount(useAccountBalanceStatic(acc.id!, allTxns))}</p>
+                  <p className="text-sm font-semibold">฿{formatAmount(useAccountBalanceStatic(acc.id, allTxns))}</p>
                 </div>
               </div>
             ))}
@@ -211,7 +211,7 @@ export default function Dashboard() {
   )
 }
 
-function useAccountBalanceStatic(accountId: number, transactions: Transaction[]): number {
+function useAccountBalanceStatic(accountId: string, transactions: Transaction[]): number {
   let balance = 0
   for (const t of transactions) {
     if (t.type === 'income' && t.accountId === accountId) balance += t.amount

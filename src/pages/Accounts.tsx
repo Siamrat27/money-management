@@ -22,7 +22,7 @@ const ACCOUNT_TYPES: { value: AccountType; label: string; icon: string }[] = [
 const COLORS = ['#6366f1', '#f59e0b', '#22c55e', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6']
 const ICONS = ['💵', '🏦', '🐷', '💳', '💰', '🏧', '📈', '🪙', '💎', '🎯']
 
-function useBalance(accountId: number): number {
+function useBalance(accountId: string): number {
   const txns = useTransactions()
   let balance = 0
   for (const t of txns) {
@@ -36,7 +36,7 @@ function useBalance(accountId: number): number {
   return balance
 }
 
-function AccountBalance({ id }: { id: number }) {
+function AccountBalance({ id }: { id: string }) {
   const balance = useBalance(id)
   return <span className={`text-lg font-bold ${balance >= 0 ? 'text-gray-800 dark:text-gray-100' : 'text-red-500'}`}>฿{formatAmount(balance)}</span>
 }
@@ -46,8 +46,8 @@ export default function Accounts() {
   const [modal, setModal] = useState<'add' | 'edit' | 'transfer' | null>(null)
   const [editing, setEditing] = useState<Account | null>(null)
   const [form, setForm] = useState({ name: '', type: 'cash' as AccountType, color: COLORS[0], icon: ICONS[0] })
-  const [fromId, setFromId] = useState<number | null>(null)
-  const [toId, setToId] = useState<number | null>(null)
+  const [fromId, setFromId] = useState<string | null>(null)
+  const [toId, setToId] = useState<string | null>(null)
   const [transferAmt, setTransferAmt] = useState('0')
   const [transferNote, setTransferNote] = useState('')
   const [transferInsufficient, setTransferInsufficient] = useState(false)
@@ -66,13 +66,13 @@ export default function Accounts() {
 
   async function handleSave() {
     if (!form.name.trim()) return
-    if (editing) await updateAccount(editing.id!, form)
+    if (editing) await updateAccount(editing.id, form)
     else await addAccount({ ...form, createdAt: new Date() })
     setModal(null)
   }
 
   async function handleDelete(a: Account) {
-    if (confirm(`ลบบัญชี "${a.name}"?`)) await deleteAccount(a.id!)
+    if (confirm(`ลบบัญชี "${a.name}"?`)) await deleteAccount(a.id)
   }
 
   async function handleTransfer() {
@@ -118,7 +118,7 @@ export default function Accounts() {
                 <p className="font-semibold">{a.name}</p>
                 <p className="text-xs text-gray-400">{ACCOUNT_TYPES.find((t) => t.value === a.type)?.label}</p>
               </div>
-              <AccountBalance id={a.id!} />
+              <AccountBalance id={a.id} />
               <div className="flex gap-1">
                 <button onClick={() => openEdit(a)} className="p-2 rounded-lg active:bg-gray-100 dark:active:bg-gray-800 text-gray-400"><Edit2 size={16} /></button>
                 <button onClick={() => handleDelete(a)} className="p-2 rounded-lg active:bg-red-50 dark:active:bg-red-950 text-gray-400"><Trash2 size={16} /></button>
@@ -131,7 +131,7 @@ export default function Accounts() {
           <Button
             variant="secondary"
             fullWidth
-            onClick={() => { setFromId(accounts[0].id!); setToId(accounts[1].id!); setModal('transfer') }}
+            onClick={() => { setFromId(accounts[0].id); setToId(accounts[1].id); setModal('transfer') }}
           >
             <ArrowLeftRight size={16} className="inline mr-2" />
             โอนเงินระหว่างบัญชี
@@ -206,7 +206,7 @@ export default function Accounts() {
             <label className="text-xs text-gray-500 block mb-1">จากบัญชี</label>
             <div className="flex gap-2 flex-wrap">
               {accounts.map((a) => (
-                <button key={a.id} onClick={() => { setFromId(a.id!); setTransferInsufficient(false) }}
+                <button key={a.id} onClick={() => { setFromId(a.id); setTransferInsufficient(false) }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${fromId === a.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'}`}>
                   {a.icon} {a.name}
                 </button>
@@ -217,7 +217,7 @@ export default function Accounts() {
             <label className="text-xs text-gray-500 block mb-1">ไปบัญชี</label>
             <div className="flex gap-2 flex-wrap">
               {accounts.filter((a) => a.id !== fromId).map((a) => (
-                <button key={a.id} onClick={() => setToId(a.id!)}
+                <button key={a.id} onClick={() => setToId(a.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${toId === a.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 text-blue-600' : 'border-gray-200 dark:border-gray-700'}`}>
                   {a.icon} {a.name}
                 </button>

@@ -24,8 +24,8 @@ export default function Transactions() {
 
   const filtered = allTxns.filter((t) => {
     if (filterType !== 'all' && t.type !== filterType) return false
-    if (filterAccount !== 'all' && t.accountId !== parseInt(filterAccount)) return false
-    if (filterTag !== 'all' && t.tagId !== parseInt(filterTag)) return false
+    if (filterAccount !== 'all' && t.accountId !== filterAccount) return false
+    if (filterTag !== 'all' && t.tagId !== filterTag) return false
     if (search) {
       const q = search.toLowerCase()
       const note = t.note.toLowerCase()
@@ -35,15 +35,15 @@ export default function Transactions() {
     return true
   })
 
-  function getTag(id?: number) { return tags.find((t) => t.id === id) }
-  function getAccount(id?: number) { return accounts.find((a) => a.id === id) }
+  function getTag(id?: string) { return tags.find((t) => t.id === id) }
+  function getAccount(id?: string) { return accounts.find((a) => a.id === id) }
 
   async function handleDelete(t: Transaction) {
-    if (confirm('ลบรายการนี้?')) await deleteTransaction(t.id!)
+    if (confirm('ลบรายการนี้?')) await deleteTransaction(t.id)
   }
 
   function handleEdit(t: Transaction) {
-    setEditTransactionId(t.id!)
+    setEditTransactionId(t.id)
     setPage('add')
   }
 
@@ -94,8 +94,8 @@ export default function Transactions() {
                   ทั้งหมด
                 </button>
                 {accounts.map((a) => (
-                  <button key={a.id} onClick={() => setFilterAccount(String(a.id))}
-                    className={`px-3 py-1 rounded-xl text-sm font-medium border-2 ${filterAccount === String(a.id) ? 'border-indigo-500 text-indigo-600 bg-indigo-50 dark:bg-indigo-950' : 'border-gray-200 dark:border-gray-700'}`}>
+                  <button key={a.id} onClick={() => setFilterAccount(a.id)}
+                    className={`px-3 py-1 rounded-xl text-sm font-medium border-2 ${filterAccount === a.id ? 'border-indigo-500 text-indigo-600 bg-indigo-50 dark:bg-indigo-950' : 'border-gray-200 dark:border-gray-700'}`}>
                     {a.icon} {a.name}
                   </button>
                 ))}
@@ -109,8 +109,8 @@ export default function Transactions() {
                   ทั้งหมด
                 </button>
                 {tags.map((t) => (
-                  <button key={t.id} onClick={() => setFilterTag(String(t.id))}
-                    className={`px-3 py-1 rounded-xl text-sm font-medium border-2 ${filterTag === String(t.id) ? 'border-indigo-500 text-indigo-600 bg-indigo-50 dark:bg-indigo-950' : 'border-gray-200 dark:border-gray-700'}`}>
+                  <button key={t.id} onClick={() => setFilterTag(t.id)}
+                    className={`px-3 py-1 rounded-xl text-sm font-medium border-2 ${filterTag === t.id ? 'border-indigo-500 text-indigo-600 bg-indigo-50 dark:bg-indigo-950' : 'border-gray-200 dark:border-gray-700'}`}>
                     {t.icon} {t.name}
                   </button>
                 ))}

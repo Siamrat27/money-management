@@ -15,7 +15,7 @@ type Period = 'day' | 'month' | 'year'
 
 export default function Reports() {
   const [period, setPeriod] = useState<Period>('month')
-  const [accountFilter, setAccountFilter] = useState<number | null>(null)
+  const [accountFilter, setAccountFilter] = useState<string | null>(null)
 
   const now = new Date()
   const [from, to] = period === 'day' ? getDayRange(now) : period === 'month' ? getMonthRange(now) : getYearRange(now)
@@ -113,7 +113,7 @@ export default function Reports() {
             ทุกบัญชี
           </button>
           {accounts.map((a) => (
-            <button key={a.id} onClick={() => setAccountFilter(a.id!)}
+            <button key={a.id} onClick={() => setAccountFilter(a.id)}
               className={`px-3 py-1.5 rounded-xl text-sm font-medium border-2 ${accountFilter === a.id ? 'border-indigo-500 text-indigo-600 bg-indigo-50 dark:bg-indigo-950' : 'border-gray-200 dark:border-gray-700'}`}>
               {a.icon} {a.name}
             </button>

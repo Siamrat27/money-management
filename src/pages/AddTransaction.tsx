@@ -29,9 +29,9 @@ export default function AddTransaction() {
 
   const [type, setType] = useState<TransactionType>('expense')
   const [amount, setAmount] = useState('0')
-  const [accountId, setAccountId] = useState<number | null>(null)
-  const [toAccountId, setToAccountId] = useState<number | null>(null)
-  const [tagId, setTagId] = useState<number | null>(null)
+  const [accountId, setAccountId] = useState<string | null>(null)
+  const [toAccountId, setToAccountId] = useState<string | null>(null)
+  const [tagId, setTagId] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [isRecurring, setIsRecurring] = useState(false)
@@ -40,7 +40,7 @@ export default function AddTransaction() {
   const [insufficientFunds, setInsufficientFunds] = useState(false)
 
   useEffect(() => {
-    if (accounts.length > 0 && accountId === null) setAccountId(accounts[0].id!)
+    if (accounts.length > 0 && accountId === null) setAccountId(accounts[0].id)
   }, [accounts])
 
   useEffect(() => {
@@ -145,7 +145,7 @@ export default function AddTransaction() {
               {accounts.map((a) => (
                 <button
                   key={a.id}
-                  onClick={() => setAccountId(a.id!)}
+                  onClick={() => setAccountId(a.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium border-2 transition-colors ${
                     accountId === a.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'
                   }`}
@@ -164,7 +164,7 @@ export default function AddTransaction() {
                 {accounts.filter((a) => a.id !== accountId).map((a) => (
                   <button
                     key={a.id}
-                    onClick={() => setToAccountId(a.id!)}
+                    onClick={() => setToAccountId(a.id)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium border-2 transition-colors ${
                       toAccountId === a.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 text-blue-600' : 'border-gray-200 dark:border-gray-700'
                     }`}
@@ -184,7 +184,7 @@ export default function AddTransaction() {
                 {filteredTags.map((tag) => (
                   <button
                     key={tag.id}
-                    onClick={() => setTagId(tagId === tag.id ? null : tag.id!)}
+                    onClick={() => setTagId(tagId === tag.id ? null : tag.id)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium border-2 transition-colors ${
                       tagId === tag.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'
                     }`}

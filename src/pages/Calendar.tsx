@@ -28,8 +28,8 @@ export default function Calendar() {
   const accounts = useAccounts()
   const tags = useTags()
 
-  function getTag(id?: number) { return tags.find((t) => t.id === id) }
-  function getAccount(id?: number) { return accounts.find((a) => a.id === id) }
+  function getTag(id?: string) { return tags.find((t) => t.id === id) }
+  function getAccount(id?: string) { return accounts.find((a) => a.id === id) }
 
   function getDayNet(date: Date): number {
     return monthTxns

@@ -8,8 +8,8 @@ interface AppStore {
   setPage: (page: Page) => void
   setSubPage: (sub: SubPage) => void
   toggleDark: () => void
-  editTransactionId: number | null
-  setEditTransactionId: (id: number | null) => void
+  editTransactionId: string | null
+  setEditTransactionId: (id: string | null) => void
 }
 
 const stored = localStorage.getItem('pf-dark')

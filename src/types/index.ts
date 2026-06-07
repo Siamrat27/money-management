@@ -4,7 +4,8 @@ export type TransactionType = 'income' | 'expense' | 'transfer'
 export type Frequency = 'daily' | 'weekly' | 'monthly' | 'yearly'
 
 export interface Account {
-  id?: number
+  id: string
+  userId: string
   name: string
   type: AccountType
   color: string
@@ -13,7 +14,8 @@ export interface Account {
 }
 
 export interface Tag {
-  id?: number
+  id: string
+  userId: string
   name: string
   color: string
   icon: string
@@ -21,25 +23,27 @@ export interface Tag {
 }
 
 export interface Transaction {
-  id?: number
+  id: string
+  userId: string
   type: TransactionType
   amount: number
-  accountId: number
-  toAccountId?: number
-  tagId?: number
+  accountId: string
+  toAccountId?: string
+  tagId?: string
   note: string
   date: Date
   isRecurring: boolean
-  recurringId?: number
+  recurringId?: string
 }
 
 export interface Recurring {
-  id?: number
+  id: string
+  userId: string
   name: string
   type: 'income' | 'expense'
   amount: number
-  accountId: number
-  tagId?: number
+  accountId: string
+  tagId?: string
   frequency: Frequency
   startDate: Date
   endDate?: Date

@@ -1,7 +1,10 @@
 import { useState, useRef } from 'react'
-import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List } from 'lucide-react'
+import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List, LogOut, RefreshCw } from 'lucide-react'
 import { useTags, addTag, updateTag, deleteTag } from '../hooks/useTags'
 import { useAppStore } from '../stores/useAppStore'
+import { useAuthStore } from '../stores/useAuthStore'
+import { pullFromCloud } from '../services/sync'
+import { isSupabaseConfigured } from '../lib/supabase'
 import Card from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import Button from '../components/ui/Button'
@@ -21,11 +24,19 @@ const ICONS_LIST = ['🍜', '🚌', '🛍️', '🎮', '🏥', '💼', '💰', '
 export default function Settings() {
   const tags = useTags()
   const { setPage, setSubPage } = useAppStore()
+  const { user, signOut, setSyncing, setSyncError } = useAuthStore()
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState<Tag | null>(null)
   const [form, setForm] = useState({ name: '', color: COLORS[0], icon: ICONS_LIST[0], type: 'expense' as TagType })
   const fileRef = useRef<HTMLInputElement>(null)
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle')
+
+  async function handleManualSync() {
+    if (!user || !isSupabaseConfigured) return
+    setSyncing(true)
+    try { await pullFromCloud(user.id) } catch (e) { setSyncError(String(e)) }
+    setSyncing(false)
+  }
 
   function openAdd() {
     setEditing(null)
@@ -41,7 +52,7 @@ export default function Settings() {
 
   async function handleSave() {
     if (!form.name.trim()) return
-    if (editing) await updateTag(editing.id!, form)
+    if (editing) await updateTag(editing.id, form)
     else await addTag(form)
     setModal(false)
   }
@@ -106,7 +117,7 @@ export default function Settings() {
                   <p className="text-xs text-gray-400">{TAG_TYPES.find((x) => x.value === t.type)?.label}</p>
                 </div>
                 <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg text-gray-400"><Edit2 size={14} /></button>
-                <button onClick={() => deleteTag(t.id!)} className="p-1.5 rounded-lg text-gray-400"><Trash2 size={14} /></button>
+                <button onClick={() => deleteTag(t.id)} className="p-1.5 rounded-lg text-gray-400"><Trash2 size={14} /></button>
               </div>
             ))}
           </div>
@@ -128,6 +139,22 @@ export default function Settings() {
           {importStatus === 'error' && <p className="text-sm text-red-500 text-center">เกิดข้อผิดพลาด กรุณาตรวจสอบไฟล์</p>}
         </Card>
 
+        {/* Account / Sync */}
+        {isSupabaseConfigured && user && (
+          <Card className="p-4 space-y-3">
+            <p className="font-semibold">บัญชีผู้ใช้</p>
+            <p className="text-sm text-gray-500 truncate">{user.email}</p>
+            <Button variant="secondary" fullWidth onClick={handleManualSync}>
+              <RefreshCw size={16} className="inline mr-2" />
+              ดึงข้อมูลจาก Cloud
+            </Button>
+            <Button variant="ghost" fullWidth onClick={signOut}>
+              <LogOut size={16} className="inline mr-2" />
+              ออกจากระบบ
+            </Button>
+          </Card>
+        )}
+
         {/* Danger Zone */}
         <Card className="p-4 space-y-3 border border-red-100 dark:border-red-900">
           <div className="flex items-center gap-2 text-red-500">
@@ -137,7 +164,7 @@ export default function Settings() {
           <Button variant="danger" fullWidth onClick={handleClear}>ลบรายการทั้งหมด</Button>
         </Card>
 
-        <p className="text-center text-xs text-gray-300 pb-4">PocketFlow v1.0 · ข้อมูลเก็บในเครื่องของคุณ</p>
+        <p className="text-center text-xs text-gray-300 pb-4">PocketFlow v1.0 · {isSupabaseConfigured ? `☁️ ซิงค์ผ่าน Supabase` : '📱 โหมดใช้งานในเครื่อง'}</p>
       </div>
 
       {/* Tag Modal */}

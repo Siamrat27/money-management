@@ -23,13 +23,13 @@ export default function RecurringManager() {
   const [editing, setEditing] = useState<Recurring | null>(null)
   const [form, setForm] = useState({
     name: '', type: 'expense' as 'income' | 'expense', amount: '',
-    accountId: 0, tagId: undefined as number | undefined,
+    accountId: '' as string, tagId: undefined as string | undefined,
     frequency: 'monthly' as Frequency, startDate: format(new Date(), 'yyyy-MM-dd'),
   })
 
   function openAdd() {
     setEditing(null)
-    setForm({ name: '', type: 'expense', amount: '', accountId: accounts[0]?.id ?? 0, tagId: undefined, frequency: 'monthly', startDate: format(new Date(), 'yyyy-MM-dd') })
+    setForm({ name: '', type: 'expense', amount: '', accountId: accounts[0]?.id ?? '', tagId: undefined, frequency: 'monthly', startDate: format(new Date(), 'yyyy-MM-dd') })
     setModal(true)
   }
 
@@ -47,15 +47,15 @@ export default function RecurringManager() {
     if (!amt || !form.name || !form.accountId) return
     const startDate = new Date(form.startDate + 'T00:00:00')
     if (editing) {
-      await updateRecurring(editing.id!, { name: form.name, type: form.type, amount: amt, accountId: form.accountId, tagId: form.tagId, frequency: form.frequency })
+      await updateRecurring(editing.id, { name: form.name, type: form.type, amount: amt, accountId: form.accountId, tagId: form.tagId, frequency: form.frequency })
     } else {
       await addRecurring({ name: form.name, type: form.type, amount: amt, accountId: form.accountId, tagId: form.tagId, frequency: form.frequency, startDate, nextDueDate: calcNextDue(startDate, form.frequency), isActive: true })
     }
     setModal(false)
   }
 
-  function getAccount(id: number) { return accounts.find((a) => a.id === id) }
-  function getTag(id?: number) { return tags.find((t) => t.id === id) }
+  function getAccount(id: string) { return accounts.find((a) => a.id === id) }
+  function getTag(id?: string) { return tags.find((t) => t.id === id) }
 
   const isOverdue = (r: Recurring) => r.nextDueDate <= today()
 
@@ -102,12 +102,12 @@ export default function RecurringManager() {
                   </div>
                   <div className="flex flex-col gap-1">
                     <div className="flex gap-1">
-                      <button onClick={() => updateRecurring(r.id!, { isActive: !r.isActive })}
+                      <button onClick={() => updateRecurring(r.id, { isActive: !r.isActive })}
                         className="p-1.5 rounded-lg active:bg-gray-100 dark:active:bg-gray-800 text-gray-400">
                         {r.isActive ? <Pause size={14} /> : <Play size={14} />}
                       </button>
                       <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg active:bg-gray-100 dark:active:bg-gray-800 text-gray-400"><Edit2 size={14} /></button>
-                      <button onClick={() => deleteRecurring(r.id!)} className="p-1.5 rounded-lg active:bg-red-50 dark:active:bg-red-950 text-gray-400"><Trash2 size={14} /></button>
+                      <button onClick={() => deleteRecurring(r.id)} className="p-1.5 rounded-lg active:bg-red-50 dark:active:bg-red-950 text-gray-400"><Trash2 size={14} /></button>
                     </div>
                     {overdue && (
                       <div className="flex gap-1">
@@ -141,7 +141,7 @@ export default function RecurringManager() {
             <label className="text-xs text-gray-500 block mb-1">บัญชี</label>
             <div className="flex gap-2 flex-wrap">
               {accounts.map((a) => (
-                <button key={a.id} onClick={() => setForm((f) => ({ ...f, accountId: a.id! }))}
+                <button key={a.id} onClick={() => setForm((f) => ({ ...f, accountId: a.id }))}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${form.accountId === a.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'}`}>
                   {a.icon} {a.name}
                 </button>
