@@ -4,7 +4,14 @@ import { db, LOCAL_USER_ID } from '../db/db'
 import { useAuthStore } from '../stores/useAuthStore'
 import { getMonthRange } from '../utils/dateHelpers'
 import { formatAmount } from '../utils/formatters'
+import { isUrlIcon } from './storage'
 import type { Transaction } from '../types'
+
+// Returns the icon as-is for emoji, or a fallback string for URL icons
+// (Discord embed text can't display images inline)
+function textIcon(icon: string, fallback: string): string {
+  return isUrlIcon(icon) ? fallback : icon
+}
 
 async function getWebhookUrl(): Promise<string> {
   const userId = useAuthStore.getState().user?.id ?? LOCAL_USER_ID
@@ -15,6 +22,7 @@ async function getWebhookUrl(): Promise<string> {
 interface DiscordEmbed {
   title?: string
   color?: number
+  thumbnail?: { url: string }
   fields?: { name: string; value: string; inline?: boolean }[]
   footer?: { text: string }
   timestamp?: string
@@ -74,14 +82,20 @@ export async function notifyNewTransaction(txn: Transaction) {
 
   const fields: { name: string; value: string; inline?: boolean }[] = []
 
+  // Use URL icon as embed thumbnail; emoji icons appear in field text directly
+  const thumbnailUrl = tag && isUrlIcon(tag.icon) ? tag.icon
+    : account && isUrlIcon(account.icon) ? account.icon
+    : undefined
+
   if (tag) {
-    fields.push({ name: '🏷️ หมวดหมู่', value: `${tag.icon} ${tag.name}`, inline: true })
+    fields.push({ name: '🏷️ หมวดหมู่', value: `${textIcon(tag.icon, '🏷️')} ${tag.name}`, inline: true })
   }
 
   if (account) {
+    const accIcon = textIcon(account.icon, '🏦')
     const accText = isTransfer
-      ? `${account.icon} ${account.name}  →  ${toAccount ? `${toAccount.icon} ${toAccount.name}` : '?'}`
-      : `${account.icon} ${account.name}`
+      ? `${accIcon} ${account.name}  →  ${toAccount ? `${textIcon(toAccount.icon, '🏦')} ${toAccount.name}` : '?'}`
+      : `${accIcon} ${account.name}`
     fields.push({ name: '🏦 บัญชี', value: accText, inline: true })
   }
 
@@ -98,6 +112,7 @@ export async function notifyNewTransaction(txn: Transaction) {
   await postToDiscord(url, [{
     title: `${typeLabel}  ${sign}฿${formatAmount(txn.amount)}`,
     color,
+    thumbnail: thumbnailUrl ? { url: thumbnailUrl } : undefined,
     fields,
     footer: { text: 'PocketFlow' },
     timestamp: txn.date.toISOString(),
@@ -115,8 +130,9 @@ export async function notifyNewTransaction(txn: Transaction) {
     if (totalSpent > tag.monthlyBudget) {
       const pct = Math.round((totalSpent / tag.monthlyBudget) * 100)
       await postToDiscord(url, [{
-        title: `⚠️ เกินงบประมาณ! ${tag.icon} ${tag.name}`,
+        title: `⚠️ เกินงบประมาณ! ${textIcon(tag.icon, '🏷️')} ${tag.name}`,
         color: 0xf97316,
+        thumbnail: isUrlIcon(tag.icon) ? { url: tag.icon } : undefined,
         fields: [
           { name: '💰 งบรายเดือน', value: `฿${formatAmount(tag.monthlyBudget)}`, inline: true },
           { name: '💸 ใช้ไปแล้ว', value: `฿${formatAmount(totalSpent)} (${pct}%)`, inline: true },
