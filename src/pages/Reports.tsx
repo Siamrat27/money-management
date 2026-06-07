@@ -7,6 +7,8 @@ import Card from '../components/ui/Card'
 import Header from '../components/layout/Header'
 import { formatAmount, formatCurrency } from '../utils/formatters'
 import { isUrlIcon } from '../lib/storage'
+import { useAuthStore } from '../stores/useAuthStore'
+import { LOCAL_USER_ID } from '../db/db'
 import { getDayRange, getMonthRange, getYearRange, formatDate } from '../utils/dateHelpers'
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts'
 import { format, eachDayOfInterval, eachMonthOfInterval } from 'date-fns'
@@ -23,13 +25,14 @@ export default function Reports() {
 
   const accounts = useAccounts()
   const tags = useTags()
+  const userId = useAuthStore((s) => s.user?.id ?? LOCAL_USER_ID)
 
   const txns = useLiveQuery(
     () => db.transactions
       .where('date').between(from, to, true, true)
-      .filter((t) => accountFilter === null || t.accountId === accountFilter || t.toAccountId === accountFilter)
+      .filter((t) => t.userId === userId && (accountFilter === null || t.accountId === accountFilter || t.toAccountId === accountFilter))
       .toArray(),
-    [from.getTime(), to.getTime(), accountFilter]
+    [from.getTime(), to.getTime(), accountFilter, userId]
   ) ?? []
 
   // When filtering by a specific account, transfers to/from that account count as income/expense.
@@ -73,7 +76,9 @@ export default function Reports() {
       const months = eachMonthOfInterval({ start: from, end: to })
       return Promise.all(months.map(async (m) => {
         const [mFrom, mTo] = getMonthRange(m)
-        const mt = await db.transactions.where('date').between(mFrom, mTo, true, true).toArray()
+        const mt = await db.transactions.where('date').between(mFrom, mTo, true, true)
+          .filter((t) => t.userId === userId)
+          .toArray()
         return {
           name: format(m, 'MMM', { locale: th }),
           income: mt.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0),
@@ -84,7 +89,9 @@ export default function Reports() {
       const days = eachDayOfInterval({ start: from, end: to })
       return Promise.all(days.map(async (d) => {
         const [dFrom, dTo] = getDayRange(d)
-        const dt = await db.transactions.where('date').between(dFrom, dTo, true, true).toArray()
+        const dt = await db.transactions.where('date').between(dFrom, dTo, true, true)
+          .filter((t) => t.userId === userId)
+          .toArray()
         return {
           name: format(d, 'd'),
           income: dt.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0),
@@ -93,7 +100,7 @@ export default function Reports() {
       }))
     }
     return []
-  }, [period]) ?? []
+  }, [period, userId]) ?? []
 
   return (
     <div className="min-h-screen pb-nav">

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { db } from '../db/db'
 
 interface AuthStore {
   user: User | null
@@ -41,7 +42,17 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   signOut: async () => {
+    const userId = useAuthStore.getState().user?.id
     if (isSupabaseConfigured) await supabase.auth.signOut()
+    if (userId) {
+      await db.transaction('rw', [db.accounts, db.tags, db.transactions, db.recurring, db.userSettings], async () => {
+        await db.accounts.where('userId').equals(userId).delete()
+        await db.tags.where('userId').equals(userId).delete()
+        await db.transactions.where('userId').equals(userId).delete()
+        await db.recurring.where('userId').equals(userId).delete()
+        await db.userSettings.where('userId').equals(userId).delete()
+      })
+    }
     set({ user: null, session: null })
   },
 }))

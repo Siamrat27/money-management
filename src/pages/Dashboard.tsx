@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { ArrowUpCircle, ArrowDownCircle, Wallet, ChevronRight, Bell } from 'lucide-react'
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db/db'
+import { db, LOCAL_USER_ID } from '../db/db'
+import { useAuthStore } from '../stores/useAuthStore'
 import { useAppStore } from '../stores/useAppStore'
 import { useAccounts } from '../hooks/useAccounts'
 import { useTransactions } from '../hooks/useTransactions'
@@ -23,27 +24,33 @@ import type { Transaction, Recurring } from '../types'
 type Period = 'day' | 'month' | 'year'
 
 function useRangeSummary(period: Period) {
+  const userId = useAuthStore((s) => s.user?.id ?? LOCAL_USER_ID)
   const now = new Date()
   const [from, to] = period === 'day' ? getDayRange(now) : period === 'month' ? getMonthRange(now) : getYearRange(now)
   return useLiveQuery(async () => {
-    const txns = await db.transactions.where('date').between(from, to, true, true).toArray()
+    const txns = await db.transactions.where('date').between(from, to, true, true)
+      .filter((t) => t.userId === userId)
+      .toArray()
     let income = 0, expense = 0
     for (const t of txns) {
       if (t.type === 'income') income += t.amount
       if (t.type === 'expense') expense += t.amount
     }
     return { income, expense, net: income - expense }
-  }, [period]) ?? { income: 0, expense: 0, net: 0 }
+  }, [period, userId]) ?? { income: 0, expense: 0, net: 0 }
 }
 
 function useMonthlyChart() {
+  const userId = useAuthStore((s) => s.user?.id ?? LOCAL_USER_ID)
   return useLiveQuery(async () => {
     const now = new Date()
     const months = Array.from({ length: 6 }, (_, i) => subMonths(now, 5 - i))
     const data = await Promise.all(
       months.map(async (m) => {
         const [from, to] = getMonthRange(m)
-        const txns = await db.transactions.where('date').between(from, to, true, true).toArray()
+        const txns = await db.transactions.where('date').between(from, to, true, true)
+          .filter((t) => t.userId === userId)
+          .toArray()
         let income = 0, expense = 0
         for (const t of txns) {
           if (t.type === 'income') income += t.amount
@@ -53,17 +60,20 @@ function useMonthlyChart() {
       })
     )
     return data
-  }, []) ?? []
+  }, [userId]) ?? []
 }
 
 function useSavingsSummary() {
+  const userId = useAuthStore((s) => s.user?.id ?? LOCAL_USER_ID)
   return useLiveQuery(async () => {
     const now = new Date()
     const months = Array.from({ length: 6 }, (_, i) => subMonths(now, 5 - i))
     const trend = await Promise.all(
       months.map(async (m) => {
         const [from, to] = getMonthRange(m)
-        const txns = await db.transactions.where('date').between(from, to, true, true).toArray()
+        const txns = await db.transactions.where('date').between(from, to, true, true)
+          .filter((t) => t.userId === userId)
+          .toArray()
         let inc = 0, exp = 0
         for (const t of txns) {
           if (t.type === 'income') inc += t.amount
@@ -76,7 +86,7 @@ function useSavingsSummary() {
     const lastMonth = trend[4].net
     const changePercent = lastMonth !== 0 ? ((thisMonth - lastMonth) / Math.abs(lastMonth)) * 100 : 0
     return { trend, thisMonth, lastMonth, changePercent }
-  }, []) ?? { trend: [], thisMonth: 0, lastMonth: 0, changePercent: 0 }
+  }, [userId]) ?? { trend: [], thisMonth: 0, lastMonth: 0, changePercent: 0 }
 }
 
 export default function Dashboard() {

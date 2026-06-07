@@ -8,6 +8,8 @@ import Card from '../components/ui/Card'
 import Header from '../components/layout/Header'
 import { formatAmount } from '../utils/formatters'
 import { formatDate, getMonthRange } from '../utils/dateHelpers'
+import { useAuthStore } from '../stores/useAuthStore'
+import { LOCAL_USER_ID } from '../db/db'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, getDay, startOfWeek, endOfWeek, addMonths, subMonths } from 'date-fns'
 import { th } from 'date-fns/locale'
 import type { Transaction } from '../types'
@@ -19,10 +21,13 @@ export default function Calendar() {
   const [selected, setSelected] = useState<Date | null>(null)
 
   const [from, to] = getMonthRange(current)
+  const userId = useAuthStore((s) => s.user?.id ?? LOCAL_USER_ID)
 
   const monthTxns = useLiveQuery(
-    () => db.transactions.where('date').between(from, to, true, true).toArray(),
-    [from.getTime()]
+    () => db.transactions.where('date').between(from, to, true, true)
+      .filter((t) => t.userId === userId)
+      .toArray(),
+    [from.getTime(), userId]
   ) ?? []
 
   const accounts = useAccounts()
