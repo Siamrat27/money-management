@@ -14,12 +14,13 @@ create table public.accounts (
 
 -- ── tags ────────────────────────────────────────────────────────────────────
 create table public.tags (
-  id       text primary key,
-  user_id  uuid references auth.users(id) on delete cascade not null,
-  name     text not null,
-  color    text not null default '#6366f1',
-  icon     text not null default '🏷️',
-  type     text not null check (type in ('income','expense','both'))
+  id             text primary key,
+  user_id        uuid references auth.users(id) on delete cascade not null,
+  name           text not null,
+  color          text not null default '#6366f1',
+  icon           text not null default '🏷️',
+  type           text not null check (type in ('income','expense','both')),
+  monthly_budget numeric default null
 );
 
 -- ── transactions ─────────────────────────────────────────────────────────────

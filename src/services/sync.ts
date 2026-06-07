@@ -139,13 +139,17 @@ function rowToAccount(r: Record<string, unknown>): Account {
 }
 
 function tagToRow(t: Tag) {
-  return { id: t.id, user_id: t.userId, name: t.name, color: t.color, icon: t.icon, type: t.type }
+  return {
+    id: t.id, user_id: t.userId, name: t.name, color: t.color, icon: t.icon, type: t.type,
+    monthly_budget: t.monthlyBudget ?? null,
+  }
 }
 
 function rowToTag(r: Record<string, unknown>): Tag {
   return {
     id: r.id as string, userId: r.user_id as string, name: r.name as string,
     color: r.color as string, icon: r.icon as string, type: r.type as Tag['type'],
+    monthlyBudget: (r.monthly_budget as number | null) ?? undefined,
   }
 }
 
