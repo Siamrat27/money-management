@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ArrowUpCircle, ArrowDownCircle, Wallet, ChevronRight, Bell } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import { useAppStore } from '../stores/useAppStore'
@@ -55,6 +55,29 @@ function useMonthlyChart() {
   }, []) ?? []
 }
 
+function useSavingsSummary() {
+  return useLiveQuery(async () => {
+    const now = new Date()
+    const months = Array.from({ length: 6 }, (_, i) => subMonths(now, 5 - i))
+    const trend = await Promise.all(
+      months.map(async (m) => {
+        const [from, to] = getMonthRange(m)
+        const txns = await db.transactions.where('date').between(from, to, true, true).toArray()
+        let inc = 0, exp = 0
+        for (const t of txns) {
+          if (t.type === 'income') inc += t.amount
+          if (t.type === 'expense') exp += t.amount
+        }
+        return { name: format(m, 'MMM', { locale: th }), net: inc - exp }
+      })
+    )
+    const thisMonth = trend[5].net
+    const lastMonth = trend[4].net
+    const changePercent = lastMonth !== 0 ? ((thisMonth - lastMonth) / Math.abs(lastMonth)) * 100 : 0
+    return { trend, thisMonth, lastMonth, changePercent }
+  }, []) ?? { trend: [], thisMonth: 0, lastMonth: 0, changePercent: 0 }
+}
+
 export default function Dashboard() {
   const [period, setPeriod] = useState<Period>('month')
   const { setPage, setSubPage } = useAppStore()
@@ -74,6 +97,7 @@ export default function Dashboard() {
     })
   }, [recurring.length])
 
+  const savings = useSavingsSummary()
   const totalBalance = accounts.reduce((sum, acc) => sum + useAccountBalanceStatic(acc.id, allTxns), 0)
 
   function getTag(id?: string) { return tags.find((t) => t.id === id) }
@@ -143,6 +167,37 @@ export default function Dashboard() {
             <p className="text-xl font-bold text-red-500">฿{formatAmount(summary.expense)}</p>
           </Card>
         </div>
+
+        {/* Savings Card */}
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">ออมได้เดือนนี้</p>
+            {savings.lastMonth !== 0 && (
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${savings.changePercent >= 0 ? 'bg-green-100 dark:bg-green-950 text-green-600' : 'bg-red-100 dark:bg-red-950 text-red-500'}`}>
+                {savings.changePercent >= 0 ? '+' : ''}{savings.changePercent.toFixed(1)}%
+              </span>
+            )}
+          </div>
+          <p className={`text-2xl font-bold mb-2 ${savings.thisMonth >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            {savings.thisMonth >= 0 ? '+' : ''}฿{formatAmount(Math.abs(savings.thisMonth))}
+          </p>
+          {savings.trend.length > 0 && (
+            <ResponsiveContainer width="100%" height={64}>
+              <AreaChart data={savings.trend} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="savingsGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area type="monotone" dataKey="net" stroke="#6366f1" strokeWidth={2} fill="url(#savingsGrad)" dot={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+                <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 12, fontSize: 11, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+          <p className="text-xs text-gray-400 mt-1">เดือนก่อน: {savings.lastMonth >= 0 ? '+' : ''}฿{formatAmount(Math.abs(savings.lastMonth))}</p>
+        </Card>
 
         {/* Bar Chart */}
         {chartData.length > 0 && (

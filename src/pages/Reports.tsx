@@ -44,17 +44,20 @@ export default function Reports() {
     return s
   }, 0)
 
+  type TagRow = { name: string; value: number; color: string; budget?: number }
+
   // Pie data by tag
-  const tagExpense = tags
+  const tagExpense: TagRow[] = tags
     .map((tag) => ({
       name: `${tag.icon} ${tag.name}`,
       value: txns.filter((t) => t.type === 'expense' && t.tagId === tag.id).reduce((s, t) => s + t.amount, 0),
       color: tag.color,
+      budget: period === 'month' ? tag.monthlyBudget : undefined,
     }))
     .filter((d) => d.value > 0)
     .sort((a, b) => b.value - a.value)
 
-  const tagIncome = tags
+  const tagIncome: TagRow[] = tags
     .map((tag) => ({
       name: `${tag.icon} ${tag.name}`,
       value: txns.filter((t) => t.type === 'income' && t.tagId === tag.id).reduce((s, t) => s + t.amount, 0),
@@ -190,17 +193,39 @@ export default function Reports() {
         {/* Tag Summary Table */}
         {(tagExpense.length > 0 || tagIncome.length > 0) && (
           <Card className="p-4">
-            <p className="text-sm font-semibold text-gray-500 mb-3">สรุปแยกหมวดหมู่</p>
-            <div className="space-y-2">
-              {[...tagExpense.map((d) => ({ ...d, type: 'expense' })), ...tagIncome.map((d) => ({ ...d, type: 'income' }))].map((d, i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-                    <span className="text-sm">{d.name}</span>
+            <p className="text-sm font-semibold text-gray-500 mb-3">สรุปแยกหมวดหมู่{period === 'month' ? ' · งบประมาณ' : ''}</p>
+            <div className="space-y-3">
+              {[...tagExpense.map((d) => ({ ...d, txnType: 'expense' as const })), ...tagIncome.map((d) => ({ ...d, txnType: 'income' as const }))].map((d, i) => (
+                <div key={i}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
+                      <span className="text-sm">{d.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-sm font-semibold ${d.txnType === 'income' ? 'text-green-500' : 'text-red-500'}`}>
+                        {d.txnType === 'income' ? '+' : '-'}฿{formatAmount(d.value)}
+                      </span>
+                      {d.txnType === 'expense' && d.budget && (
+                        <span className={`text-xs ${d.value > d.budget ? 'text-red-400 font-semibold' : 'text-gray-400'}`}>
+                          / ฿{formatAmount(d.budget)}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <span className={`text-sm font-semibold ${d.type === 'income' ? 'text-green-500' : 'text-red-500'}`}>
-                    {d.type === 'income' ? '+' : '-'}฿{formatAmount(d.value)}
-                  </span>
+                  {d.txnType === 'expense' && d.budget && (
+                    <div className="mt-1.5">
+                      <div className="h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${d.value > d.budget ? 'bg-red-500' : d.value / d.budget > 0.8 ? 'bg-amber-400' : 'bg-green-400'}`}
+                          style={{ width: `${Math.min(100, (d.value / d.budget) * 100)}%` }}
+                        />
+                      </div>
+                      <p className={`text-xs mt-0.5 ${d.value > d.budget ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+                        {d.value > d.budget ? `เกินงบ ฿${formatAmount(d.value - d.budget)}` : `เหลือ ฿${formatAmount(d.budget - d.value)} (${Math.round((d.value / d.budget) * 100)}%)`}
+                      </p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

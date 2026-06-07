@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react'
-import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List, LogOut, RefreshCw } from 'lucide-react'
+import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List, LogOut, RefreshCw, Zap } from 'lucide-react'
 import { useTags, addTag, updateTag, deleteTag } from '../hooks/useTags'
+import { useAccounts } from '../hooks/useAccounts'
+import { usePresets, addPreset, deletePreset } from '../hooks/usePresets'
 import { useAppStore } from '../stores/useAppStore'
 import { useAuthStore } from '../stores/useAuthStore'
 import { pullFromCloud } from '../services/sync'
@@ -9,9 +11,10 @@ import Card from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import Button from '../components/ui/Button'
 import Header from '../components/layout/Header'
+import { formatAmount } from '../utils/formatters'
 import { exportData, importData } from '../utils/exportImport'
 import { db } from '../db/db'
-import type { Tag, TagType } from '../types'
+import type { Tag, TagType, TransactionType } from '../types'
 
 const TAG_TYPES: { value: TagType; label: string }[] = [
   { value: 'expense', label: 'รายจ่าย' },
@@ -23,11 +26,23 @@ const ICONS_LIST = ['🍜', '🚌', '🛍️', '🎮', '🏥', '💼', '💰', '
 
 export default function Settings() {
   const tags = useTags()
+  const accounts = useAccounts()
+  const presets = usePresets()
   const { setPage, setSubPage } = useAppStore()
   const { user, signOut, setSyncing, setSyncError } = useAuthStore()
+
+  // Tag modal
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState<Tag | null>(null)
-  const [form, setForm] = useState({ name: '', color: COLORS[0], icon: ICONS_LIST[0], type: 'expense' as TagType })
+  const [form, setForm] = useState({ name: '', color: COLORS[0], icon: ICONS_LIST[0], type: 'expense' as TagType, monthlyBudget: '' })
+
+  // Preset modal
+  const [presetModal, setPresetModal] = useState(false)
+  const [presetForm, setPresetForm] = useState({
+    name: '', type: 'expense' as TransactionType, amount: '',
+    accountId: '', toAccountId: '', tagId: '', note: '',
+  })
+
   const fileRef = useRef<HTMLInputElement>(null)
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
@@ -40,21 +55,41 @@ export default function Settings() {
 
   function openAdd() {
     setEditing(null)
-    setForm({ name: '', color: COLORS[0], icon: ICONS_LIST[0], type: 'expense' })
+    setForm({ name: '', color: COLORS[0], icon: ICONS_LIST[0], type: 'expense', monthlyBudget: '' })
     setModal(true)
   }
 
   function openEdit(t: Tag) {
     setEditing(t)
-    setForm({ name: t.name, color: t.color, icon: t.icon, type: t.type })
+    setForm({ name: t.name, color: t.color, icon: t.icon, type: t.type, monthlyBudget: t.monthlyBudget ? String(t.monthlyBudget) : '' })
     setModal(true)
   }
 
   async function handleSave() {
     if (!form.name.trim()) return
-    if (editing) await updateTag(editing.id, form)
-    else await addTag(form)
+    const budget = form.monthlyBudget ? parseFloat(form.monthlyBudget) : undefined
+    const data = { name: form.name, color: form.color, icon: form.icon, type: form.type, monthlyBudget: budget }
+    if (editing) await updateTag(editing.id, data)
+    else await addTag(data)
     setModal(false)
+  }
+
+  function openAddPreset() {
+    setPresetForm({ name: '', type: 'expense', amount: '', accountId: accounts[0]?.id ?? '', toAccountId: '', tagId: '', note: '' })
+    setPresetModal(true)
+  }
+
+  async function handleSavePreset() {
+    const amt = parseFloat(presetForm.amount)
+    if (!presetForm.name.trim() || !amt || !presetForm.accountId) return
+    await addPreset({
+      name: presetForm.name, type: presetForm.type, amount: amt,
+      accountId: presetForm.accountId,
+      toAccountId: presetForm.type === 'transfer' ? presetForm.toAccountId || undefined : undefined,
+      tagId: presetForm.tagId || undefined,
+      note: presetForm.note,
+    })
+    setPresetModal(false)
   }
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -123,6 +158,43 @@ export default function Settings() {
           </div>
         </Card>
 
+        {/* Presets */}
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Zap size={18} className="text-indigo-500" />
+              <p className="font-semibold">รายการด่วน (Presets)</p>
+            </div>
+            <button onClick={openAddPreset} className="flex items-center gap-1 text-sm text-indigo-500">
+              <Plus size={16} /> เพิ่ม
+            </button>
+          </div>
+          {presets.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-2">ยังไม่มี preset — กด + เพื่อเพิ่ม</p>
+          ) : (
+            <div className="space-y-2">
+              {presets.map((p) => {
+                const acc = accounts.find((a) => a.id === p.accountId)
+                const tag = tags.find((t) => t.id === p.tagId)
+                return (
+                  <div key={p.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg bg-indigo-50 dark:bg-indigo-950">
+                      {tag?.icon ?? (p.type === 'income' ? '💰' : p.type === 'transfer' ? '↔️' : '💸')}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{p.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {p.type === 'income' ? '+' : p.type === 'transfer' ? '' : '-'}฿{formatAmount(p.amount)} · {acc?.name ?? ''}
+                      </p>
+                    </div>
+                    <button onClick={() => deletePreset(p.id)} className="p-1.5 rounded-lg text-gray-400"><Trash2 size={14} /></button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Card>
+
         {/* Backup */}
         <Card className="p-4 space-y-3">
           <p className="font-semibold">ข้อมูล</p>
@@ -183,6 +255,16 @@ export default function Settings() {
               ))}
             </div>
           </div>
+          {(form.type === 'expense' || form.type === 'both') && (
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">งบประมาณต่อเดือน (ไม่บังคับ)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-sm text-gray-400">฿</span>
+                <input type="number" value={form.monthlyBudget} onChange={(e) => setForm((f) => ({ ...f, monthlyBudget: e.target.value }))}
+                  placeholder="0" className="w-full pl-7 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none" />
+              </div>
+            </div>
+          )}
           <div>
             <label className="text-xs text-gray-500 block mb-1">ไอคอน</label>
             <div className="flex gap-2 flex-wrap">
@@ -207,6 +289,70 @@ export default function Settings() {
           <div className="flex gap-3">
             <Button variant="secondary" onClick={() => setModal(false)}>ยกเลิก</Button>
             <Button fullWidth onClick={handleSave}>บันทึก</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Preset Modal */}
+      <Modal open={presetModal} onClose={() => setPresetModal(false)} title="เพิ่มรายการด่วน">
+        <div className="space-y-4">
+          <input type="text" value={presetForm.name} onChange={(e) => setPresetForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="ชื่อ preset เช่น ค่ากาแฟ..." className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none" />
+          <div className="flex bg-gray-100 dark:bg-gray-800 rounded-2xl p-1 gap-1">
+            {(['expense', 'income', 'transfer'] as TransactionType[]).map((t) => (
+              <button key={t} onClick={() => setPresetForm((f) => ({ ...f, type: t, tagId: '', toAccountId: '' }))}
+                className={`flex-1 py-2 rounded-xl text-xs font-semibold ${presetForm.type === t ? (t === 'income' ? 'bg-green-500 text-white' : t === 'expense' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white') : 'text-gray-500'}`}>
+                {t === 'income' ? 'รายรับ' : t === 'expense' ? 'รายจ่าย' : 'โอน'}
+              </button>
+            ))}
+          </div>
+          <div className="relative">
+            <span className="absolute left-3 top-2.5 text-sm text-gray-400">฿</span>
+            <input type="number" value={presetForm.amount} onChange={(e) => setPresetForm((f) => ({ ...f, amount: e.target.value }))}
+              placeholder="จำนวนเงิน" className="w-full pl-7 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">บัญชี{presetForm.type === 'transfer' ? ' (จาก)' : ''}</label>
+            <div className="flex gap-2 flex-wrap">
+              {accounts.map((a) => (
+                <button key={a.id} onClick={() => setPresetForm((f) => ({ ...f, accountId: a.id }))}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${presetForm.accountId === a.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'}`}>
+                  {a.icon} {a.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          {presetForm.type === 'transfer' && (
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">บัญชีปลายทาง</label>
+              <div className="flex gap-2 flex-wrap">
+                {accounts.filter((a) => a.id !== presetForm.accountId).map((a) => (
+                  <button key={a.id} onClick={() => setPresetForm((f) => ({ ...f, toAccountId: a.id }))}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${presetForm.toAccountId === a.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 text-blue-600' : 'border-gray-200 dark:border-gray-700'}`}>
+                    {a.icon} {a.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {presetForm.type !== 'transfer' && (
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">หมวดหมู่ (ไม่บังคับ)</label>
+              <div className="flex gap-2 flex-wrap">
+                {tags.filter((t) => presetForm.type === 'income' ? t.type !== 'expense' : t.type !== 'income').map((t) => (
+                  <button key={t.id} onClick={() => setPresetForm((f) => ({ ...f, tagId: f.tagId === t.id ? '' : t.id }))}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${presetForm.tagId === t.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'}`}>
+                    {t.icon} {t.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <input type="text" value={presetForm.note} onChange={(e) => setPresetForm((f) => ({ ...f, note: e.target.value }))}
+            placeholder="บันทึก (ไม่บังคับ)..." className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none" />
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={() => setPresetModal(false)}>ยกเลิก</Button>
+            <Button fullWidth onClick={handleSavePreset}>บันทึก</Button>
           </div>
         </div>
       </Modal>

@@ -20,6 +20,19 @@ export interface Tag {
   color: string
   icon: string
   type: TagType
+  monthlyBudget?: number
+}
+
+export interface Preset {
+  id: string
+  userId: string
+  name: string
+  type: TransactionType
+  amount: number
+  accountId: string
+  toAccountId?: string
+  tagId?: string
+  note: string
 }
 
 export interface Transaction {

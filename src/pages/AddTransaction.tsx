@@ -4,6 +4,8 @@ import { format } from 'date-fns'
 import { useAccounts, getAccountBalance } from '../hooks/useAccounts'
 import { useTags } from '../hooks/useTags'
 import { addTransaction, updateTransaction, useTransactions } from '../hooks/useTransactions'
+import { usePresets } from '../hooks/usePresets'
+import type { Preset } from '../types'
 import { addRecurring } from '../hooks/useRecurring'
 import { useAppStore } from '../stores/useAppStore'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -23,6 +25,7 @@ export default function AddTransaction() {
   const accounts = useAccounts()
   const tags = useTags()
   const allTxns = useTransactions()
+  const presets = usePresets()
 
   function calcBal(accountId: string): number {
     let bal = 0
@@ -69,6 +72,16 @@ export default function AddTransaction() {
       setDate(format(editTxn.date, 'yyyy-MM-dd'))
     }
   }, [editTxn])
+
+  function applyPreset(p: Preset) {
+    setType(p.type)
+    setAmount(String(p.amount))
+    setAccountId(p.accountId)
+    setToAccountId(p.toAccountId ?? null)
+    setTagId(p.tagId ?? null)
+    setNote(p.note)
+    setInsufficientFunds(false)
+  }
 
   const filteredTags = tags.filter((t) => type === 'income' ? t.type !== 'expense' : type === 'expense' ? t.type !== 'income' : true)
 
@@ -126,6 +139,30 @@ export default function AddTransaction() {
       <Header title={editTransactionId ? 'แก้ไขรายการ' : 'เพิ่มรายการ'} />
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 flex-1 flex flex-col gap-4">
+        {/* Preset Strip */}
+        {presets.length > 0 && (
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">รายการด่วน</label>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {presets.map((p) => {
+                const tag = tags.find((t) => t.id === p.tagId)
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => applyPreset(p)}
+                    className="flex-shrink-0 flex flex-col items-start px-3 py-2 rounded-xl border-2 border-gray-200 dark:border-gray-700 active:border-indigo-500 active:bg-indigo-50 dark:active:bg-indigo-950 transition-colors"
+                  >
+                    <span className="text-sm font-medium flex items-center gap-1">
+                      {tag?.icon ?? (p.type === 'income' ? '💰' : p.type === 'transfer' ? '↔️' : '💸')} {p.name}
+                    </span>
+                    <span className="text-xs text-gray-400">฿{formatAmount(p.amount)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Type Selector */}
         <div className="flex bg-gray-100 dark:bg-gray-800 rounded-2xl p-1 gap-1">
           {(['expense', 'income', 'transfer'] as TransactionType[]).map((t) => (

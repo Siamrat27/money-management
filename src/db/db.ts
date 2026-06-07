@@ -1,11 +1,12 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { Account, Tag, Transaction, Recurring } from '../types'
+import type { Account, Tag, Transaction, Recurring, Preset } from '../types'
 
 const db = new Dexie('PocketFlowDB') as Dexie & {
   accounts: EntityTable<Account, 'id'>
   tags: EntityTable<Tag, 'id'>
   transactions: EntityTable<Transaction, 'id'>
   recurring: EntityTable<Recurring, 'id'>
+  presets: EntityTable<Preset, 'id'>
 }
 
 // Version 2: switched from auto-increment int to UUID string IDs, added userId
@@ -14,6 +15,15 @@ db.version(2).stores({
   tags: 'id, userId, name, type',
   transactions: 'id, userId, type, accountId, toAccountId, tagId, date, recurringId',
   recurring: 'id, userId, type, accountId, tagId, nextDueDate, isActive',
+})
+
+// Version 3: added presets table
+db.version(3).stores({
+  accounts: 'id, userId, name, type, createdAt',
+  tags: 'id, userId, name, type',
+  transactions: 'id, userId, type, accountId, toAccountId, tagId, date, recurringId',
+  recurring: 'id, userId, type, accountId, tagId, nextDueDate, isActive',
+  presets: 'id, userId, type, accountId',
 })
 
 export const LOCAL_USER_ID = 'local'
