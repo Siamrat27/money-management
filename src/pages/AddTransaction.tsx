@@ -3,7 +3,7 @@ import { ArrowLeftRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { useAccounts, getAccountBalance } from '../hooks/useAccounts'
 import { useTags } from '../hooks/useTags'
-import { addTransaction, updateTransaction } from '../hooks/useTransactions'
+import { addTransaction, updateTransaction, useTransactions } from '../hooks/useTransactions'
 import { addRecurring } from '../hooks/useRecurring'
 import { useAppStore } from '../stores/useAppStore'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -12,6 +12,7 @@ import Numpad from '../components/ui/Numpad'
 import AmountDisplay from '../components/ui/AmountDisplay'
 import Button from '../components/ui/Button'
 import Header from '../components/layout/Header'
+import { formatAmount } from '../utils/formatters'
 import type { TransactionType, Frequency } from '../types'
 import { nextDueDate, frequencyLabel } from '../utils/dateHelpers'
 
@@ -21,6 +22,20 @@ export default function AddTransaction() {
   const { setPage, editTransactionId, setEditTransactionId } = useAppStore()
   const accounts = useAccounts()
   const tags = useTags()
+  const allTxns = useTransactions()
+
+  function calcBal(accountId: string): number {
+    let bal = 0
+    for (const t of allTxns) {
+      if (t.type === 'income' && t.accountId === accountId) bal += t.amount
+      if (t.type === 'expense' && t.accountId === accountId) bal -= t.amount
+      if (t.type === 'transfer') {
+        if (t.accountId === accountId) bal -= t.amount
+        if (t.toAccountId === accountId) bal += t.amount
+      }
+    }
+    return bal
+  }
 
   const editTxn = useLiveQuery(
     () => editTransactionId ? db.transactions.get(editTransactionId) : Promise.resolve(undefined),
@@ -142,17 +157,21 @@ export default function AddTransaction() {
           <div>
             <label className="text-xs text-gray-500 mb-1 block">บัญชี{type === 'transfer' ? ' (จาก)' : ''}</label>
             <div className="flex gap-2 flex-wrap">
-              {accounts.map((a) => (
-                <button
-                  key={a.id}
-                  onClick={() => setAccountId(a.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium border-2 transition-colors ${
-                    accountId === a.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'
-                  }`}
-                >
-                  <span>{a.icon}</span>{a.name}
-                </button>
-              ))}
+              {accounts.map((a) => {
+                const bal = calcBal(a.id)
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => setAccountId(a.id)}
+                    className={`flex flex-col items-start px-3 py-2 rounded-xl text-sm font-medium border-2 transition-colors ${
+                      accountId === a.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">{a.icon} {a.name}</span>
+                    <span className={`text-xs mt-0.5 ${accountId === a.id ? 'text-indigo-400' : 'text-gray-400'}`}>฿{formatAmount(bal)}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
@@ -161,17 +180,21 @@ export default function AddTransaction() {
             <div>
               <label className="text-xs text-gray-500 mb-1 block flex items-center gap-1"><ArrowLeftRight size={12} />บัญชีปลายทาง</label>
               <div className="flex gap-2 flex-wrap">
-                {accounts.filter((a) => a.id !== accountId).map((a) => (
-                  <button
-                    key={a.id}
-                    onClick={() => setToAccountId(a.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium border-2 transition-colors ${
-                      toAccountId === a.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 text-blue-600' : 'border-gray-200 dark:border-gray-700'
-                    }`}
-                  >
-                    <span>{a.icon}</span>{a.name}
-                  </button>
-                ))}
+                {accounts.filter((a) => a.id !== accountId).map((a) => {
+                  const bal = calcBal(a.id)
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => setToAccountId(a.id)}
+                      className={`flex flex-col items-start px-3 py-2 rounded-xl text-sm font-medium border-2 transition-colors ${
+                        toAccountId === a.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 text-blue-600' : 'border-gray-200 dark:border-gray-700'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5">{a.icon} {a.name}</span>
+                      <span className={`text-xs mt-0.5 ${toAccountId === a.id ? 'text-blue-400' : 'text-gray-400'}`}>฿{formatAmount(bal)}</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
