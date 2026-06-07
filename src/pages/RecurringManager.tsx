@@ -8,6 +8,8 @@ import Card from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import Button from '../components/ui/Button'
 import Header from '../components/layout/Header'
+import IconDisplay from '../components/ui/IconDisplay'
+import { isUrlIcon } from '../lib/storage'
 import { formatAmount } from '../utils/formatters'
 import { formatDate, frequencyLabel, today } from '../utils/dateHelpers'
 import { format } from 'date-fns'
@@ -80,9 +82,9 @@ export default function RecurringManager() {
             return (
               <Card key={r.id} className={`p-4 ${overdue ? 'ring-2 ring-orange-400' : ''}`}>
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl flex-shrink-0"
+                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl flex-shrink-0 overflow-hidden"
                     style={{ backgroundColor: (tag?.color ?? '#6366f1') + '22' }}>
-                    {tag?.icon ?? '🔄'}
+                    <IconDisplay icon={tag?.icon ?? '🔄'} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -97,7 +99,14 @@ export default function RecurringManager() {
                       <span className="text-xs text-gray-400">{frequencyLabel(r.frequency)}</span>
                       <span className="text-xs text-gray-300">·</span>
                       <span className="text-xs text-gray-400">ถัดไป: {formatDate(r.nextDueDate, 'd MMM yy')}</span>
-                      {acc && <span className="text-xs text-gray-400">{acc.icon} {acc.name}</span>}
+                      {acc && (
+                        <span className="flex items-center gap-1 text-xs text-gray-400">
+                          {isUrlIcon(acc.icon)
+                            ? <img src={acc.icon} className="w-3.5 h-3.5 rounded object-cover flex-shrink-0" alt="" />
+                            : <span>{acc.icon}</span>}
+                          {acc.name}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col gap-1">
@@ -143,7 +152,9 @@ export default function RecurringManager() {
               {accounts.map((a) => (
                 <button key={a.id} onClick={() => setForm((f) => ({ ...f, accountId: a.id }))}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${form.accountId === a.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'}`}>
-                  {a.icon} {a.name}
+                  {isUrlIcon(a.icon)
+                    ? <img src={a.icon} className="w-4 h-4 rounded object-cover flex-shrink-0" alt="" />
+                    : a.icon} {a.name}
                 </button>
               ))}
             </div>
