@@ -291,7 +291,7 @@ function TransactionRow({ t, tag, account, toAccount }: { t: Transaction; tag?: 
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm truncate">{t.note || tag?.name || (isTransfer ? 'โอนเงิน' : '-')}</p>
         <p className="text-xs text-gray-400">
-          {isTransfer ? `${account?.name} → ${toAccount?.name}` : account?.name} · {formatDate(t.date, 'd MMM')}
+          {isTransfer ? `${account?.name} → ${toAccount?.name}` : account?.name} · {formatDate(t.date, 'd MMM HH:mm')}
         </p>
       </div>
       <p className={`font-semibold text-sm ${isIncome ? 'text-green-500' : isTransfer ? 'text-blue-500' : 'text-red-500'}`}>

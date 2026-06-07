@@ -99,7 +99,9 @@ export default function AddTransaction() {
       }
     }
 
-    const txnDate = new Date(date + 'T00:00:00')
+    const now = new Date()
+    const [yr, mo, dy] = date.split('-').map(Number)
+    const txnDate = new Date(yr, mo - 1, dy, now.getHours(), now.getMinutes(), now.getSeconds())
 
     if (editTransactionId) {
       await updateTransaction(editTransactionId, {

@@ -12,7 +12,7 @@ function currentUserId(): string {
 export function useTransactions() {
   const userId = useAuthStore((s) => s.user?.id ?? LOCAL_USER_ID)
   return useLiveQuery(
-    () => db.transactions.where('userId').equals(userId).reverse().sortBy('date'),
+    () => db.transactions.where('userId').equals(userId).sortBy('date').then((arr) => arr.reverse()),
     [userId]
   ) ?? []
 }
