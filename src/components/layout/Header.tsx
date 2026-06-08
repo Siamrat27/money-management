@@ -4,10 +4,11 @@ import { useAppStore } from '../../stores/useAppStore'
 interface Props {
   title: string
   showBack?: boolean
+  onBack?: () => void
   right?: React.ReactNode
 }
 
-export default function Header({ title, showBack, right }: Props) {
+export default function Header({ title, showBack, onBack, right }: Props) {
   const { darkMode, toggleDark, setSubPage } = useAppStore()
 
   return (
@@ -15,7 +16,7 @@ export default function Header({ title, showBack, right }: Props) {
       <div className="flex items-center justify-between px-4 h-14 max-w-lg mx-auto">
         <div className="flex items-center gap-2">
           {showBack && (
-            <button onClick={() => setSubPage(null)} className="p-1 -ml-1 rounded-full active:bg-gray-100 dark:active:bg-gray-800">
+            <button onClick={() => onBack ? onBack() : setSubPage(null)} className="p-1 -ml-1 rounded-full active:bg-gray-100 dark:active:bg-gray-800">
               <ArrowLeft size={22} />
             </button>
           )}

@@ -69,5 +69,40 @@ export interface UserSettings {
   discordWebhook?: string
 }
 
+export interface SavingsPlan {
+  id: string
+  userId: string
+  name: string
+  targetAmount: number
+  targetDate: Date
+  initialAmount: number
+  note?: string
+}
+
+export interface SavingsCashFlow {
+  id: string
+  userId: string
+  planId: string
+  name: string
+  type: 'income' | 'expense'
+  amount: number
+  frequency: 'daily' | 'weekly' | 'monthly'
+  countWeekends: boolean
+}
+
+export interface ScheduledPayment {
+  id: string
+  userId: string
+  type: 'income' | 'expense'
+  amount: number
+  accountId: string
+  tagId?: string
+  note: string
+  dueDate: Date
+  isActive: boolean
+  executedAt?: Date
+  transactionId?: string
+}
+
 export type Page = 'dashboard' | 'add' | 'calendar' | 'reports' | 'settings'
-export type SubPage = 'transactions' | 'accounts' | 'recurring' | null
+export type SubPage = 'transactions' | 'accounts' | 'recurring' | 'savings-planner' | 'scheduled-payments' | null

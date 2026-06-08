@@ -13,6 +13,8 @@ import Settings from './pages/Settings'
 import Accounts from './pages/Accounts'
 import RecurringManager from './pages/RecurringManager'
 import Transactions from './pages/Transactions'
+import SavingsPlanner from './pages/SavingsPlanner'
+import ScheduledPayments from './pages/ScheduledPayments'
 import Login from './pages/Login'
 
 export default function App() {
@@ -49,6 +51,8 @@ export default function App() {
     if (subPage === 'transactions') return <Transactions />
     if (subPage === 'accounts') return <Accounts />
     if (subPage === 'recurring') return <RecurringManager />
+    if (subPage === 'savings-planner') return <SavingsPlanner />
+    if (subPage === 'scheduled-payments') return <ScheduledPayments />
 
     switch (page) {
       case 'dashboard': return <Dashboard />

@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { Account, Tag, Transaction, Recurring, Preset, UserSettings } from '../types'
+import type { Account, Tag, Transaction, Recurring, Preset, UserSettings, SavingsPlan, SavingsCashFlow, ScheduledPayment } from '../types'
 
 const db = new Dexie('PocketFlowDB') as Dexie & {
   accounts: EntityTable<Account, 'id'>
@@ -8,6 +8,9 @@ const db = new Dexie('PocketFlowDB') as Dexie & {
   recurring: EntityTable<Recurring, 'id'>
   presets: EntityTable<Preset, 'id'>
   userSettings: EntityTable<UserSettings, 'userId'>
+  savingsPlans: EntityTable<SavingsPlan, 'id'>
+  savingsCashFlows: EntityTable<SavingsCashFlow, 'id'>
+  scheduledPayments: EntityTable<ScheduledPayment, 'id'>
 }
 
 // Version 2: switched from auto-increment int to UUID string IDs, added userId
@@ -35,6 +38,19 @@ db.version(4).stores({
   recurring: 'id, userId, type, accountId, tagId, nextDueDate, isActive',
   presets: 'id, userId, type, accountId',
   userSettings: 'userId',
+})
+
+// Version 5: savings planner + scheduled payments
+db.version(5).stores({
+  accounts: 'id, userId, name, type, createdAt',
+  tags: 'id, userId, name, type',
+  transactions: 'id, userId, type, accountId, toAccountId, tagId, date, recurringId',
+  recurring: 'id, userId, type, accountId, tagId, nextDueDate, isActive',
+  presets: 'id, userId, type, accountId',
+  userSettings: 'userId',
+  savingsPlans: 'id, userId',
+  savingsCashFlows: 'id, userId, planId',
+  scheduledPayments: 'id, userId, dueDate, isActive',
 })
 
 export const LOCAL_USER_ID = 'local'

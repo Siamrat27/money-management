@@ -10,31 +10,37 @@
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { db } from '../db/db'
-import type { Account, Tag, Transaction, Recurring, Preset, UserSettings } from '../types'
+import type { Account, Tag, Transaction, Recurring, Preset, UserSettings, SavingsPlan, SavingsCashFlow, ScheduledPayment } from '../types'
 
 // ─── Pull: Supabase → Dexie ──────────────────────────────────────────────────
 
 export async function pullFromCloud(userId: string): Promise<void> {
   if (!isSupabaseConfigured) return
 
-  const [accRes, tagRes, txnRes, recRes, settingsRes, presetsRes] = await Promise.all([
+  const [accRes, tagRes, txnRes, recRes, settingsRes, presetsRes, plansRes, cashFlowsRes, scheduledRes] = await Promise.all([
     supabase.from('accounts').select('*').eq('user_id', userId),
     supabase.from('tags').select('*').eq('user_id', userId),
     supabase.from('transactions').select('*').eq('user_id', userId),
     supabase.from('recurring').select('*').eq('user_id', userId),
     supabase.from('user_settings').select('*').eq('user_id', userId).maybeSingle(),
     supabase.from('presets').select('*').eq('user_id', userId),
+    supabase.from('savings_plans').select('*').eq('user_id', userId),
+    supabase.from('savings_cash_flows').select('*').eq('user_id', userId),
+    supabase.from('scheduled_payments').select('*').eq('user_id', userId),
   ])
 
   if (accRes.error) throw new Error(accRes.error.message)
 
-  await db.transaction('rw', [db.accounts, db.tags, db.transactions, db.recurring, db.userSettings, db.presets], async () => {
+  await db.transaction('rw', [db.accounts, db.tags, db.transactions, db.recurring, db.userSettings, db.presets, db.savingsPlans, db.savingsCashFlows, db.scheduledPayments], async () => {
     // Clear existing cloud-user data
     await db.accounts.where('userId').equals(userId).delete()
     await db.tags.where('userId').equals(userId).delete()
     await db.transactions.where('userId').equals(userId).delete()
     await db.recurring.where('userId').equals(userId).delete()
     await db.presets.where('userId').equals(userId).delete()
+    await db.savingsPlans.where('userId').equals(userId).delete()
+    await db.savingsCashFlows.where('userId').equals(userId).delete()
+    await db.scheduledPayments.where('userId').equals(userId).delete()
 
     if (accRes.data?.length) {
       await db.accounts.bulkPut(accRes.data.map(rowToAccount))
@@ -53,6 +59,15 @@ export async function pullFromCloud(userId: string): Promise<void> {
     }
     if (presetsRes.data?.length) {
       await db.presets.bulkPut(presetsRes.data.map(rowToPreset))
+    }
+    if (plansRes.data?.length) {
+      await db.savingsPlans.bulkPut(plansRes.data.map(rowToSavingsPlan))
+    }
+    if (cashFlowsRes.data?.length) {
+      await db.savingsCashFlows.bulkPut(cashFlowsRes.data.map(rowToSavingsCashFlow))
+    }
+    if (scheduledRes.data?.length) {
+      await db.scheduledPayments.bulkPut(scheduledRes.data.map(rowToScheduledPayment))
     }
   })
 
@@ -118,6 +133,36 @@ export async function pushPreset(p: Preset) {
 export async function deleteCloudPreset(id: string) {
   if (!isSupabaseConfigured) return
   await supabase.from('presets').delete().eq('id', id)
+}
+
+export async function pushSavingsPlan(p: SavingsPlan) {
+  if (!isSupabaseConfigured) return
+  await supabase.from('savings_plans').upsert(savingsPlanToRow(p))
+}
+
+export async function deleteCloudSavingsPlan(id: string) {
+  if (!isSupabaseConfigured) return
+  await supabase.from('savings_plans').delete().eq('id', id)
+}
+
+export async function pushSavingsCashFlow(c: SavingsCashFlow) {
+  if (!isSupabaseConfigured) return
+  await supabase.from('savings_cash_flows').upsert(savingsCashFlowToRow(c))
+}
+
+export async function deleteCloudSavingsCashFlow(id: string) {
+  if (!isSupabaseConfigured) return
+  await supabase.from('savings_cash_flows').delete().eq('id', id)
+}
+
+export async function pushScheduledPayment(p: ScheduledPayment) {
+  if (!isSupabaseConfigured) return
+  await supabase.from('scheduled_payments').upsert(scheduledPaymentToRow(p))
+}
+
+export async function deleteCloudScheduledPayment(id: string) {
+  if (!isSupabaseConfigured) return
+  await supabase.from('scheduled_payments').delete().eq('id', id)
 }
 
 // ─── Seed defaults for new cloud users ───────────────────────────────────────
@@ -247,5 +292,58 @@ function rowToRecurring(r: Record<string, unknown>): Recurring {
     startDate: new Date(r.start_date as string),
     endDate: r.end_date ? new Date(r.end_date as string) : undefined,
     nextDueDate: new Date(r.next_due_date as string), isActive: r.is_active as boolean,
+  }
+}
+
+function savingsPlanToRow(p: SavingsPlan) {
+  return {
+    id: p.id, user_id: p.userId, name: p.name,
+    target_amount: p.targetAmount, target_date: p.targetDate.toISOString(),
+    initial_amount: p.initialAmount, note: p.note ?? null,
+  }
+}
+
+function rowToSavingsPlan(r: Record<string, unknown>): SavingsPlan {
+  return {
+    id: r.id as string, userId: r.user_id as string, name: r.name as string,
+    targetAmount: r.target_amount as number, targetDate: new Date(r.target_date as string),
+    initialAmount: r.initial_amount as number, note: (r.note as string | null) ?? undefined,
+  }
+}
+
+function savingsCashFlowToRow(c: SavingsCashFlow) {
+  return {
+    id: c.id, user_id: c.userId, plan_id: c.planId, name: c.name,
+    type: c.type, amount: c.amount, frequency: c.frequency, count_weekends: c.countWeekends,
+  }
+}
+
+function rowToSavingsCashFlow(r: Record<string, unknown>): SavingsCashFlow {
+  return {
+    id: r.id as string, userId: r.user_id as string, planId: r.plan_id as string,
+    name: r.name as string, type: r.type as SavingsCashFlow['type'],
+    amount: r.amount as number, frequency: r.frequency as SavingsCashFlow['frequency'],
+    countWeekends: r.count_weekends as boolean,
+  }
+}
+
+function scheduledPaymentToRow(p: ScheduledPayment) {
+  return {
+    id: p.id, user_id: p.userId, type: p.type, amount: p.amount,
+    account_id: p.accountId, tag_id: p.tagId ?? null, note: p.note,
+    due_date: p.dueDate.toISOString(), is_active: p.isActive,
+    executed_at: p.executedAt?.toISOString() ?? null,
+    transaction_id: p.transactionId ?? null,
+  }
+}
+
+function rowToScheduledPayment(r: Record<string, unknown>): ScheduledPayment {
+  return {
+    id: r.id as string, userId: r.user_id as string, type: r.type as ScheduledPayment['type'],
+    amount: r.amount as number, accountId: r.account_id as string,
+    tagId: (r.tag_id as string | null) ?? undefined, note: r.note as string,
+    dueDate: new Date(r.due_date as string), isActive: r.is_active as boolean,
+    executedAt: r.executed_at ? new Date(r.executed_at as string) : undefined,
+    transactionId: (r.transaction_id as string | null) ?? undefined,
   }
 }

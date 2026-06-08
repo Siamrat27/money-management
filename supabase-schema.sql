@@ -166,3 +166,52 @@ $$;
 -- Grant anon/authenticated roles permission to call the RPCs
 grant execute on function public.record_failed_login(text) to anon, authenticated;
 grant execute on function public.reset_failed_login(uuid) to authenticated;
+
+-- ── savings_plans ────────────────────────────────────────────────────────────
+create table public.savings_plans (
+  id             text primary key,
+  user_id        uuid references auth.users(id) on delete cascade not null,
+  name           text not null,
+  target_amount  numeric(15,2) not null check (target_amount > 0),
+  target_date    timestamptz not null,
+  initial_amount numeric(15,2) not null default 0,
+  note           text
+);
+
+-- ── savings_cash_flows ───────────────────────────────────────────────────────
+create table public.savings_cash_flows (
+  id             text primary key,
+  user_id        uuid references auth.users(id) on delete cascade not null,
+  plan_id        text references public.savings_plans(id) on delete cascade not null,
+  name           text not null,
+  type           text not null check (type in ('income','expense')),
+  amount         numeric(15,2) not null check (amount > 0),
+  frequency      text not null check (frequency in ('daily','weekly','monthly')),
+  count_weekends boolean not null default true
+);
+
+-- ── scheduled_payments ───────────────────────────────────────────────────────
+create table public.scheduled_payments (
+  id             text primary key,
+  user_id        uuid references auth.users(id) on delete cascade not null,
+  type           text not null check (type in ('income','expense')),
+  amount         numeric(15,2) not null check (amount > 0),
+  account_id     text references public.accounts(id) on delete cascade not null,
+  tag_id         text references public.tags(id) on delete set null,
+  note           text not null default '',
+  due_date       timestamptz not null,
+  is_active      boolean not null default true,
+  executed_at    timestamptz,
+  transaction_id text
+);
+
+alter table public.savings_plans     enable row level security;
+alter table public.savings_cash_flows enable row level security;
+alter table public.scheduled_payments enable row level security;
+
+create policy "own savings_plans"      on public.savings_plans      for all using (auth.uid() = user_id);
+create policy "own savings_cash_flows" on public.savings_cash_flows  for all using (auth.uid() = user_id);
+create policy "own scheduled_payments" on public.scheduled_payments  for all using (auth.uid() = user_id);
+
+create index on public.scheduled_payments (user_id, is_active, due_date);
+create index on public.savings_cash_flows (plan_id);
