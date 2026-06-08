@@ -68,10 +68,11 @@ export async function notifyNewTransaction(txn: Transaction) {
   const url = await getWebhookUrl()
   if (!url) return
 
-  const [account, toAccount, tag] = await Promise.all([
+  const [account, toAccount, tag, recurring] = await Promise.all([
     db.accounts.get(txn.accountId),
     txn.toAccountId ? db.accounts.get(txn.toAccountId) : Promise.resolve(undefined),
     txn.tagId ? db.tags.get(txn.tagId) : Promise.resolve(undefined),
+    txn.recurringId ? db.recurring.get(txn.recurringId) : Promise.resolve(undefined),
   ])
 
   const isIncome = txn.type === 'income'
@@ -97,6 +98,11 @@ export async function notifyNewTransaction(txn: Transaction) {
       ? `${accIcon} ${account.name}  →  ${toAccount ? `${textIcon(toAccount.icon, '🏦')} ${toAccount.name}` : '?'}`
       : `${accIcon} ${account.name}`
     fields.push({ name: '🏦 บัญชี', value: accText, inline: true })
+  }
+
+  if (recurring) {
+    const freqLabel: Record<string, string> = { daily: 'รายวัน', weekly: 'รายสัปดาห์', monthly: 'รายเดือน', yearly: 'รายปี' }
+    fields.push({ name: '🔄 รายการต่อเนื่อง', value: `${recurring.name} · ${freqLabel[recurring.frequency] ?? recurring.frequency}`, inline: false })
   }
 
   if (txn.note) {

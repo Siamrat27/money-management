@@ -148,7 +148,10 @@ export default function Calendar() {
                         {tag?.icon ?? '💸'}
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium">{t.note || tag?.name || '-'}</p>
+                        <div className="flex items-center gap-1">
+                          <p className="text-sm font-medium truncate">{t.note || tag?.name || '-'}</p>
+                          {t.isRecurring && <span className="flex-shrink-0 text-[9px] leading-none bg-indigo-100 dark:bg-indigo-950 text-indigo-500 rounded-full px-1.5 py-0.5">🔄</span>}
+                        </div>
                         <p className="text-xs text-gray-400">{account?.name}</p>
                       </div>
                       <p className={`text-sm font-bold ${isIncome ? 'text-green-500' : 'text-red-500'}`}>

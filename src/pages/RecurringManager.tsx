@@ -23,6 +23,7 @@ export default function RecurringManager() {
   const tags = useTags()
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState<Recurring | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<Recurring | null>(null)
   const [form, setForm] = useState({
     name: '', type: 'expense' as 'income' | 'expense', amount: '',
     accountId: '' as string, tagId: undefined as string | undefined,
@@ -124,7 +125,7 @@ export default function RecurringManager() {
                         {r.isActive ? <Pause size={14} /> : <Play size={14} />}
                       </button>
                       <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg active:bg-gray-100 dark:active:bg-gray-800 text-gray-400"><Edit2 size={14} /></button>
-                      <button onClick={() => deleteRecurring(r.id)} className="p-1.5 rounded-lg active:bg-red-50 dark:active:bg-red-950 text-gray-400"><Trash2 size={14} /></button>
+                      <button onClick={() => setDeleteConfirm(r)} className="p-1.5 rounded-lg active:bg-red-50 dark:active:bg-red-950 text-gray-400"><Trash2 size={14} /></button>
                     </div>
                     {overdue && (
                       <div className="flex gap-1">
@@ -186,6 +187,19 @@ export default function RecurringManager() {
           <div className="flex gap-3">
             <Button variant="secondary" onClick={() => setModal(false)}>ยกเลิก</Button>
             <Button fullWidth onClick={handleSave}>บันทึก</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="ยืนยันการลบ">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            ลบ <span className="font-semibold">"{deleteConfirm?.name}"</span> ออกจากรายการต่อเนื่องใช่หรือไม่?
+          </p>
+          <p className="text-xs text-gray-400">รายการที่บันทึกไปแล้วจะไม่ถูกลบ</p>
+          <div className="flex gap-3">
+            <Button variant="secondary" fullWidth onClick={() => setDeleteConfirm(null)}>ยกเลิก</Button>
+            <Button variant="danger" fullWidth onClick={async () => { await deleteRecurring(deleteConfirm!.id); setDeleteConfirm(null) }}>ลบ</Button>
           </div>
         </div>
       </Modal>

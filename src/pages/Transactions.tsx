@@ -147,7 +147,10 @@ export default function Transactions() {
                     <IconDisplay icon={isTransfer ? '↔️' : tag?.icon ?? '💸'} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{t.note || tag?.name || (isTransfer ? 'โอนเงิน' : '-')}</p>
+                    <div className="flex items-center gap-1">
+                      <p className="font-medium text-sm truncate">{t.note || tag?.name || (isTransfer ? 'โอนเงิน' : '-')}</p>
+                      {t.isRecurring && <span className="flex-shrink-0 text-[9px] leading-none bg-indigo-100 dark:bg-indigo-950 text-indigo-500 rounded-full px-1.5 py-0.5">🔄</span>}
+                    </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <p className="text-xs text-gray-400">{formatDate(t.date, 'd MMM yy HH:mm')}</p>
                       {tag && <Badge icon={tag.icon} label={tag.name} color={tag.color} />}
