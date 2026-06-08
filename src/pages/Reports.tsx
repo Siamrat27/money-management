@@ -11,7 +11,7 @@ import { isUrlIcon } from '../lib/storage'
 import { useAuthStore } from '../stores/useAuthStore'
 import { LOCAL_USER_ID } from '../db/db'
 import { getDayRange, getMonthRange, getYearRange } from '../utils/dateHelpers'
-import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts'
+import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts'
 import { format, eachDayOfInterval, eachMonthOfInterval } from 'date-fns'
 import { th } from 'date-fns/locale'
 
@@ -123,7 +123,13 @@ export default function Reports() {
     return []
   }, [period, from.getTime(), to.getTime(), userId]) ?? []
 
-  const barCatGap = period === 'day' ? '30%' : period === 'month' || (period === 'custom' && diffDays <= 62) ? '25%' : '20%'
+  const byDay = period === 'month' || (period === 'custom' && diffDays <= 62)
+
+  const yFmt = (v: number) =>
+    v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M`
+    : v >= 10_000 ? `${(v / 1_000).toFixed(0)}k`
+    : v >= 1_000 ? `${(v / 1_000).toFixed(1)}k`
+    : `${v}`
 
   return (
     <div className="min-h-screen pb-nav">
@@ -231,20 +237,40 @@ export default function Reports() {
           </Card>
         )}
 
-        {/* Trend bar chart */}
+        {/* Trend chart — AreaChart for dense daily data, BarChart for monthly (12 bars) */}
         {trendData.length > 1 && (
           <Card className="p-4">
             <p className="text-sm font-semibold text-gray-500 mb-3">แนวโน้ม</p>
-            <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={trendData} barCategoryGap={barCatGap} barGap={2} maxBarSize={18} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis tickFormatter={(v: number) => v >= 1_000_000 ? `${(v/1_000_000).toFixed(1)}M` : v >= 10_000 ? `${(v/1_000).toFixed(0)}k` : v >= 1_000 ? `${(v/1_000).toFixed(1)}k` : `${v}`}
-                  tick={{ fontSize: 9 }} axisLine={false} tickLine={false} width={30} />
-                <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 12, fontSize: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
-                <Bar dataKey="income"  name="รายรับ"  fill="#22c55e" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expense" name="รายจ่าย" fill="#ef4444" radius={[4, 4, 0, 0]} />
-              </BarChart>
+            <ResponsiveContainer width="100%" height={200}>
+              {byDay ? (
+                <AreaChart data={trendData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="rptIncome" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="rptExpense" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis tickFormatter={yFmt} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} width={32} />
+                  <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 12, fontSize: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }} />
+                  <Area type="monotone" dataKey="income" name="รายรับ" stroke="#22c55e" strokeWidth={2} fill="url(#rptIncome)" dot={false} activeDot={{ r: 4 }} />
+                  <Area type="monotone" dataKey="expense" name="รายจ่าย" stroke="#ef4444" strokeWidth={2} fill="url(#rptExpense)" dot={false} activeDot={{ r: 4 }} />
+                </AreaChart>
+              ) : (
+                <BarChart data={trendData} barCategoryGap="28%" barGap={4} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tickFormatter={yFmt} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} width={32} />
+                  <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 12, fontSize: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }} />
+                  <Bar dataKey="income"  name="รายรับ"  fill="#22c55e" radius={[5, 5, 0, 0]} />
+                  <Bar dataKey="expense" name="รายจ่าย" fill="#ef4444" radius={[5, 5, 0, 0]} />
+                </BarChart>
+              )}
             </ResponsiveContainer>
           </Card>
         )}
