@@ -49,9 +49,17 @@ export default function RecurringManager() {
     if (!amt || !form.name || !form.accountId) return
     const startDate = new Date(form.startDate + 'T00:00:00')
     if (editing) {
-      await updateRecurring(editing.id, { name: form.name, type: form.type, amount: amt, accountId: form.accountId, tagId: form.tagId, frequency: form.frequency })
+      const startChanged = startDate.getTime() !== new Date(editing.startDate).getTime()
+      const freqChanged = form.frequency !== editing.frequency
+      const updates: Partial<typeof editing> = {
+        name: form.name, type: form.type, amount: amt,
+        accountId: form.accountId, tagId: form.tagId,
+        frequency: form.frequency, startDate,
+      }
+      if (startChanged || freqChanged) updates.nextDueDate = startDate
+      await updateRecurring(editing.id, updates)
     } else {
-      await addRecurring({ name: form.name, type: form.type, amount: amt, accountId: form.accountId, tagId: form.tagId, frequency: form.frequency, startDate, nextDueDate: calcNextDue(startDate, form.frequency), isActive: true })
+      await addRecurring({ name: form.name, type: form.type, amount: amt, accountId: form.accountId, tagId: form.tagId, frequency: form.frequency, startDate, nextDueDate: startDate, isActive: true })
     }
     setModal(false)
   }
