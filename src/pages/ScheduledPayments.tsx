@@ -24,10 +24,11 @@ function dueDateInfo(dueDate: Date): { text: string; className: string } {
   const today = startOfDay(new Date())
   const due = startOfDay(dueDate)
   const days = differenceInDays(due, today)
-  if (days < 0) return { text: `เกิน ${Math.abs(days)} วัน`, className: 'text-red-500' }
-  if (days === 0) return { text: 'วันนี้!', className: 'text-orange-500 font-semibold' }
-  if (days <= 3) return { text: `อีก ${days} วัน`, className: 'text-yellow-500' }
-  return { text: format(dueDate, 'd MMM yyyy', { locale: th }), className: 'text-gray-400' }
+  const time = format(dueDate, 'HH:mm')
+  if (days < 0) return { text: `เกิน ${Math.abs(days)} วัน · ${time}`, className: 'text-red-500' }
+  if (days === 0) return { text: `วันนี้ · ${time}`, className: 'text-orange-500 font-semibold' }
+  if (days <= 3) return { text: `อีก ${days} วัน · ${time}`, className: 'text-yellow-500' }
+  return { text: `${format(dueDate, 'd MMM yyyy', { locale: th })} · ${time}`, className: 'text-gray-400' }
 }
 
 interface PaymentCardProps {
@@ -172,7 +173,7 @@ function LogCard({ payment, accounts, tags, onReactivate, onDelete }: LogCardPro
           <div className="mt-1 flex items-center gap-2">
             {wasExecuted ? (
               <span className="text-xs bg-green-100 dark:bg-green-950 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full">
-                ✓ ดำเนินการแล้ว {format(payment.executedAt!, 'd MMM yy', { locale: th })}
+                ✓ ดำเนินการแล้ว {format(payment.executedAt!, 'd MMM yy · HH:mm', { locale: th })}
               </span>
             ) : (
               <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full">
@@ -180,7 +181,7 @@ function LogCard({ payment, accounts, tags, onReactivate, onDelete }: LogCardPro
               </span>
             )}
             <span className="text-xs text-gray-300">
-              กำหนด {format(payment.dueDate, 'd MMM yy', { locale: th })}
+              กำหนด {format(payment.dueDate, 'd MMM yy · HH:mm', { locale: th })}
             </span>
           </div>
           <div className="flex items-center gap-1.5 mt-2.5">
@@ -207,7 +208,7 @@ const EMPTY_FORM = {
   accountId: '',
   tagId: '',
   note: '',
-  dueDate: format(new Date(), 'yyyy-MM-dd'),
+  dueDate: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
 }
 
 export default function ScheduledPayments() {
@@ -230,7 +231,7 @@ export default function ScheduledPayments() {
 
   function openAdd() {
     setEditingPayment(null)
-    setForm({ ...EMPTY_FORM, accountId: accounts[0]?.id ?? '', dueDate: format(new Date(), 'yyyy-MM-dd') })
+    setForm({ ...EMPTY_FORM, accountId: accounts[0]?.id ?? '', dueDate: format(new Date(), "yyyy-MM-dd'T'HH:mm") })
     setModal(true)
   }
 
@@ -242,7 +243,7 @@ export default function ScheduledPayments() {
       accountId: p.accountId,
       tagId: p.tagId ?? '',
       note: p.note,
-      dueDate: format(p.dueDate, 'yyyy-MM-dd'),
+      dueDate: format(p.dueDate, "yyyy-MM-dd'T'HH:mm"),
     })
     setModal(true)
   }
@@ -256,7 +257,7 @@ export default function ScheduledPayments() {
       accountId: form.accountId,
       tagId: form.tagId || undefined,
       note: form.note,
-      dueDate: new Date(form.dueDate + 'T00:00:00'),
+      dueDate: new Date(form.dueDate),
       isActive: true as const,
     }
     if (editingPayment) await updateScheduledPayment(editingPayment.id, data)
@@ -336,7 +337,7 @@ export default function ScheduledPayments() {
                 payment={p}
                 accounts={accounts}
                 tags={tags}
-                onReactivate={(p) => { setReactivateTarget(p); setNewDueDate(format(new Date(), 'yyyy-MM-dd')) }}
+                onReactivate={(p) => { setReactivateTarget(p); setNewDueDate(format(p.dueDate, "yyyy-MM-dd'T'HH:mm")) }}
                 onDelete={setDeleteConfirm}
               />
             ))
@@ -410,9 +411,9 @@ export default function ScheduledPayments() {
             className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none"
           />
           <div>
-            <label className="text-xs text-gray-500 block mb-1">วันกำหนด</label>
+            <label className="text-xs text-gray-500 block mb-1">วันและเวลากำหนด</label>
             <input
-              type="date"
+              type="datetime-local"
               value={form.dueDate}
               onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
               className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none"
@@ -481,12 +482,12 @@ export default function ScheduledPayments() {
       <Modal open={!!reactivateTarget} onClose={() => setReactivateTarget(null)} title="นำกลับมา — เลือกวันกำหนดใหม่">
         <div className="space-y-4">
           <p className="text-sm text-gray-500">
-            กำหนดเดิม: {reactivateTarget && format(reactivateTarget.dueDate, 'd MMM yyyy', { locale: th })}
+            กำหนดเดิม: {reactivateTarget && format(reactivateTarget.dueDate, "d MMM yyyy · HH:mm", { locale: th })}
           </p>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">วันกำหนดใหม่</label>
+            <label className="text-xs text-gray-500 block mb-1">วันและเวลากำหนดใหม่</label>
             <input
-              type="date"
+              type="datetime-local"
               value={newDueDate}
               onChange={(e) => setNewDueDate(e.target.value)}
               className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none"
@@ -496,7 +497,7 @@ export default function ScheduledPayments() {
             <Button variant="secondary" onClick={() => setReactivateTarget(null)}>ยกเลิก</Button>
             <Button fullWidth onClick={async () => {
               if (!newDueDate) return
-              await reactivateScheduledPayment(reactivateTarget!, new Date(newDueDate + 'T00:00:00'))
+              await reactivateScheduledPayment(reactivateTarget!, new Date(newDueDate))
               setReactivateTarget(null)
             }}>ยืนยัน</Button>
           </div>
