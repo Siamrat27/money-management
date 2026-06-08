@@ -6,6 +6,8 @@ import { useTags } from '../hooks/useTags'
 import { useAppStore } from '../stores/useAppStore'
 import Header from '../components/layout/Header'
 import Card from '../components/ui/Card'
+import Modal from '../components/ui/Modal'
+import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { formatCurrency, formatAmount } from '../utils/formatters'
 import { formatDate } from '../utils/dateHelpers'
@@ -23,6 +25,7 @@ export default function Transactions() {
   const [filterAccount, setFilterAccount] = useState<string>('all')
   const [filterTag, setFilterTag] = useState<string>('all')
   const [showFilter, setShowFilter] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState<Transaction | null>(null)
 
   const filtered = allTxns.filter((t) => {
     if (filterType !== 'all' && t.type !== filterType) return false
@@ -40,8 +43,8 @@ export default function Transactions() {
   function getTag(id?: string) { return tags.find((t) => t.id === id) }
   function getAccount(id?: string) { return accounts.find((a) => a.id === id) }
 
-  async function handleDelete(t: Transaction) {
-    if (confirm('ลบรายการนี้?')) await deleteTransaction(t.id)
+  function handleDelete(t: Transaction) {
+    setDeleteConfirm(t)
   }
 
   function handleEdit(t: Transaction) {
@@ -174,6 +177,18 @@ export default function Transactions() {
           </Card>
         )}
       </div>
+
+      <Modal open={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="ยืนยันการลบ">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            ลบรายการ <span className="font-semibold">"{deleteConfirm?.note || '-'}"</span> ใช่หรือไม่?
+          </p>
+          <div className="flex gap-3">
+            <Button variant="secondary" fullWidth onClick={() => setDeleteConfirm(null)}>ยกเลิก</Button>
+            <Button variant="danger" fullWidth onClick={async () => { await deleteTransaction(deleteConfirm!.id); setDeleteConfirm(null) }}>ลบ</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

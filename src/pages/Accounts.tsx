@@ -47,6 +47,7 @@ export default function Accounts() {
   const accounts = useAccounts()
   const [modal, setModal] = useState<'add' | 'edit' | 'transfer' | null>(null)
   const [editing, setEditing] = useState<Account | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<Account | null>(null)
   const [form, setForm] = useState({ name: '', type: 'cash' as AccountType, color: COLORS[0], icon: ICONS[0] })
   const [currentBalance, setCurrentBalance] = useState(0)
   const [balanceTarget, setBalanceTarget] = useState('')
@@ -96,8 +97,8 @@ export default function Accounts() {
     setModal(null)
   }
 
-  async function handleDelete(a: Account) {
-    if (confirm(`ลบบัญชี "${a.name}"?`)) await deleteAccount(a.id)
+  function handleDelete(a: Account) {
+    setDeleteConfirm(a)
   }
 
   async function handleIconUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -308,6 +309,17 @@ export default function Accounts() {
           <div className="flex gap-3">
             <Button variant="secondary" onClick={() => { setModal(null); setTransferInsufficient(false) }}>ยกเลิก</Button>
             <Button fullWidth onClick={handleTransfer} className="!bg-blue-500">โอนเงิน</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="ยืนยันการลบ">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">ลบบัญชี <span className="font-semibold">"{deleteConfirm?.name}"</span> ใช่หรือไม่?</p>
+          <p className="text-xs text-gray-400">ประวัติรายการของบัญชีนี้จะยังคงอยู่</p>
+          <div className="flex gap-3">
+            <Button variant="secondary" fullWidth onClick={() => setDeleteConfirm(null)}>ยกเลิก</Button>
+            <Button variant="danger" fullWidth onClick={async () => { await deleteAccount(deleteConfirm!.id); setDeleteConfirm(null) }}>ลบ</Button>
           </div>
         </div>
       </Modal>

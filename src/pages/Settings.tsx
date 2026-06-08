@@ -44,6 +44,8 @@ export default function Settings() {
   // Preset modal
   const [presetModal, setPresetModal] = useState(false)
   const [editingPreset, setEditingPreset] = useState<Preset | null>(null)
+  const [deleteTagConfirm, setDeleteTagConfirm] = useState<Tag | null>(null)
+  const [deletePresetConfirm, setDeletePresetConfirm] = useState<Preset | null>(null)
   const [presetForm, setPresetForm] = useState({
     name: '', type: 'expense' as TransactionType, amount: '',
     accountId: '', toAccountId: '', tagId: '', note: '',
@@ -208,7 +210,7 @@ export default function Settings() {
                   <p className="text-xs text-gray-400">{TAG_TYPES.find((x) => x.value === t.type)?.label}</p>
                 </div>
                 <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg text-gray-400"><Edit2 size={14} /></button>
-                <button onClick={() => deleteTag(t.id)} className="p-1.5 rounded-lg text-gray-400"><Trash2 size={14} /></button>
+                <button onClick={() => setDeleteTagConfirm(t)} className="p-1.5 rounded-lg text-gray-400"><Trash2 size={14} /></button>
               </div>
             ))}
           </div>
@@ -254,7 +256,7 @@ export default function Settings() {
                       </p>
                     </div>
                     <button onClick={() => openEditPreset(p)} className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-500"><Edit2 size={14} /></button>
-                    <button onClick={() => deletePreset(p.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
+                    <button onClick={() => setDeletePresetConfirm(p)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
                   </div>
                 )
               })}
@@ -470,6 +472,27 @@ export default function Settings() {
           <div className="flex gap-3">
             <Button variant="secondary" onClick={() => setPresetModal(false)}>ยกเลิก</Button>
             <Button fullWidth onClick={handleSavePreset}>บันทึก</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={!!deleteTagConfirm} onClose={() => setDeleteTagConfirm(null)} title="ยืนยันการลบ">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">ลบหมวดหมู่ <span className="font-semibold">"{deleteTagConfirm?.name}"</span> ใช่หรือไม่?</p>
+          <p className="text-xs text-gray-400">รายการที่ใช้หมวดหมู่นี้ไปแล้วจะไม่ถูกลบ</p>
+          <div className="flex gap-3">
+            <Button variant="secondary" fullWidth onClick={() => setDeleteTagConfirm(null)}>ยกเลิก</Button>
+            <Button variant="danger" fullWidth onClick={async () => { await deleteTag(deleteTagConfirm!.id); setDeleteTagConfirm(null) }}>ลบ</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={!!deletePresetConfirm} onClose={() => setDeletePresetConfirm(null)} title="ยืนยันการลบ">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">ลบรายการด่วน <span className="font-semibold">"{deletePresetConfirm?.name}"</span> ใช่หรือไม่?</p>
+          <div className="flex gap-3">
+            <Button variant="secondary" fullWidth onClick={() => setDeletePresetConfirm(null)}>ยกเลิก</Button>
+            <Button variant="danger" fullWidth onClick={async () => { await deletePreset(deletePresetConfirm!.id); setDeletePresetConfirm(null) }}>ลบ</Button>
           </div>
         </div>
       </Modal>
