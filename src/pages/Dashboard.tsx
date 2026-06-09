@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ArrowUpCircle, ArrowDownCircle, Wallet, ChevronRight, Bell } from 'lucide-react'
+import { ArrowUpCircle, ArrowDownCircle, Wallet, ChevronRight, RefreshCw, X } from 'lucide-react'
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, LOCAL_USER_ID } from '../db/db'
@@ -8,18 +8,20 @@ import { useAppStore } from '../stores/useAppStore'
 import { useAccounts } from '../hooks/useAccounts'
 import { useTransactions } from '../hooks/useTransactions'
 import { useTags } from '../hooks/useTags'
-import { useRecurring, checkAndProcessRecurring, confirmRecurring, skipRecurring } from '../hooks/useRecurring'
+import { useRecurring } from '../hooks/useRecurring'
+import { runAutoProcess } from '../services/autoProcess'
+import type { AutoProcessResult } from '../services/autoProcess'
+import { pullFromCloud } from '../services/sync'
+import { isSupabaseConfigured } from '../lib/supabase'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
-import Modal from '../components/ui/Modal'
-import Button from '../components/ui/Button'
 import IconDisplay from '../components/ui/IconDisplay'
 import Header from '../components/layout/Header'
 import { formatCurrency, formatAmount } from '../utils/formatters'
 import { formatDate, formatDateShort, getMonthRange, getYearRange, getDayRange, today } from '../utils/dateHelpers'
 import { format, eachDayOfInterval, subMonths, getMonth } from 'date-fns'
 import { th } from 'date-fns/locale'
-import type { Transaction, Recurring } from '../types'
+import type { Transaction } from '../types'
 
 type Period = 'day' | 'month' | 'year'
 
@@ -115,21 +117,43 @@ function useNetWorthTrend() {
 export default function Dashboard() {
   const [period, setPeriod] = useState<Period>('month')
   const { setPage, setSubPage } = useAppStore()
+  const { user } = useAuthStore()
+  const userId = user?.id ?? LOCAL_USER_ID
   const summary = useRangeSummary(period)
   const chartData = useMonthlyChart()
   const accounts = useAccounts()
   const allTxns = useTransactions()
   const tags = useTags()
-  const recurring = useRecurring()
-  const [dueItems, setDueItems] = useState<Recurring[]>([])
-  const [dueModal, setDueModal] = useState(false)
+  useRecurring() // keep live subscription so Dexie updates propagate
   const recent = allTxns.slice(0, 5)
 
+  const [autoResult, setAutoResult] = useState<AutoProcessResult | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+
+  // Run auto-process on mount and on login
   useEffect(() => {
-    checkAndProcessRecurring().then((items) => {
-      if (items.length > 0) { setDueItems(items); setDueModal(true) }
+    runAutoProcess(userId).then((result) => {
+      if (result.scheduledCount + result.recurringCount > 0) setAutoResult(result)
     })
-  }, [recurring.length])
+  }, [userId])
+
+  // Auto-dismiss the result banner after 5s
+  useEffect(() => {
+    if (!autoResult) return
+    const t = setTimeout(() => setAutoResult(null), 5000)
+    return () => clearTimeout(t)
+  }, [autoResult])
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    try {
+      if (user && isSupabaseConfigured) await pullFromCloud(user.id)
+      const result = await runAutoProcess(userId)
+      if (result.scheduledCount + result.recurringCount > 0) setAutoResult(result)
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   const savings = useSavingsSummary()
   const netWorthData = useNetWorthTrend()
@@ -143,16 +167,37 @@ export default function Dashboard() {
       <Header
         title="PocketFlow 💰"
         right={
-          dueItems.length > 0 ? (
-            <button onClick={() => setDueModal(true)} className="relative p-2">
-              <Bell size={20} className="text-orange-500" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
-          ) : undefined
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-2 rounded-full active:bg-gray-100 dark:active:bg-gray-800 disabled:opacity-50"
+          >
+            <RefreshCw size={20} className={refreshing ? 'animate-spin text-indigo-500' : ''} />
+          </button>
         }
       />
 
       <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
+        {/* Auto-process result banner */}
+        {autoResult && (autoResult.scheduledCount + autoResult.recurringCount) > 0 && (
+          <div className="flex items-center justify-between bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-2xl px-4 py-3">
+            <div className="flex items-start gap-2">
+              <span className="text-green-500 mt-0.5">✅</span>
+              <div>
+                <p className="text-sm font-semibold text-green-700 dark:text-green-300">ดำเนินการอัตโนมัติแล้ว</p>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                  {[
+                    autoResult.recurringCount > 0 && `รายการต่อเนื่อง ${autoResult.recurringCount} ครั้ง`,
+                    autoResult.scheduledCount > 0 && `ล่วงหน้า ${autoResult.scheduledCount} รายการ`,
+                  ].filter(Boolean).join(' · ')}
+                </p>
+              </div>
+            </div>
+            <button onClick={() => setAutoResult(null)} className="p-1 text-green-400">
+              <X size={15} />
+            </button>
+          </div>
+        )}
         {/* Total Balance */}
         <Card className="p-5 bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
           <p className="text-indigo-200 text-sm font-medium">ยอดรวมทั้งหมด</p>
@@ -324,26 +369,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Due Recurring Modal */}
-      <Modal open={dueModal} onClose={() => setDueModal(false)} title={`รายการครบกำหนด (${dueItems.length})`}>
-        <div className="space-y-3">
-          {dueItems.map((r) => (
-            <div key={r.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-2xl">
-              <div>
-                <p className="font-medium">{r.name}</p>
-                <p className={`text-sm font-semibold ${r.type === 'income' ? 'text-green-500' : 'text-red-500'}`}>
-                  {r.type === 'income' ? '+' : '-'}฿{formatAmount(r.amount)}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="secondary" onClick={() => skipRecurring(r).then(() => setDueItems((d) => d.filter((x) => x.id !== r.id)))}>ข้าม</Button>
-                <Button size="sm" onClick={() => confirmRecurring(r).then(() => setDueItems((d) => d.filter((x) => x.id !== r.id)))}>บันทึก</Button>
-              </div>
-            </div>
-          ))}
-          {dueItems.length === 0 && <p className="text-center text-gray-400 py-4">เสร็จสิ้น ✓</p>}
-        </div>
-      </Modal>
     </div>
   )
 }
