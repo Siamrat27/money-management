@@ -17,7 +17,8 @@ import Modal from '../components/ui/Modal'
 import Button from '../components/ui/Button'
 import Header from '../components/layout/Header'
 import { formatAmount } from '../utils/formatters'
-import { exportData, importData } from '../utils/exportImport'
+import { exportData, importData, parseImportFile } from '../utils/exportImport'
+import type { ImportPayload, ImportPreview } from '../utils/exportImport'
 import { db } from '../db/db'
 import type { Tag, TagType, Preset, TransactionType } from '../types'
 
@@ -61,6 +62,8 @@ export default function Settings() {
 
   const fileRef = useRef<HTMLInputElement>(null)
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [importPayload, setImportPayload] = useState<ImportPayload | null>(null)
+  const [importMode, setImportMode] = useState<'merge' | 'overwrite'>('merge')
   const [iconUploading, setIconUploading] = useState(false)
 
   async function handleTagIconUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -154,14 +157,27 @@ export default function Settings() {
     const file = e.target.files?.[0]
     if (!file) return
     try {
-      await importData(file)
+      const payload = await parseImportFile(file)
+      setImportMode('merge')
+      setImportPayload(payload)
+    } catch {
+      setImportStatus('error')
+      setTimeout(() => setImportStatus('idle'), 3000)
+    }
+    e.target.value = ''
+  }
+
+  async function handleConfirmImport() {
+    if (!importPayload) return
+    try {
+      await importData(importPayload.raw, importMode, user?.id ?? 'local')
+      setImportPayload(null)
       setImportStatus('success')
       setTimeout(() => setImportStatus('idle'), 3000)
     } catch {
       setImportStatus('error')
       setTimeout(() => setImportStatus('idle'), 3000)
     }
-    e.target.value = ''
   }
 
   async function handleClear() {
@@ -495,6 +511,77 @@ export default function Settings() {
           <div className="flex gap-3">
             <Button variant="secondary" fullWidth onClick={() => setDeletePresetConfirm(null)}>ยกเลิก</Button>
             <Button variant="danger" fullWidth onClick={async () => { await deletePreset(deletePresetConfirm!.id); setDeletePresetConfirm(null) }}>ลบ</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── IMPORT CONFIRM MODAL ── */}
+      <Modal open={!!importPayload} onClose={() => setImportPayload(null)} title="นำเข้าข้อมูล">
+        <div className="space-y-4">
+          {importPayload?.exportedAt && (
+            <p className="text-xs text-gray-400">
+              ส่งออกเมื่อ: {importPayload.exportedAt.replace('T', ' ').slice(0, 16)}
+            </p>
+          )}
+
+          {/* Preview */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+            <p className="text-xs font-medium text-gray-500 mb-2">ข้อมูลในไฟล์</p>
+            <div className="space-y-1.5">
+              {(
+                [
+                  { key: 'accounts', label: 'บัญชี' },
+                  { key: 'tags', label: 'หมวดหมู่' },
+                  { key: 'transactions', label: 'รายการ' },
+                  { key: 'recurring', label: 'รายการต่อเนื่อง' },
+                  { key: 'presets', label: 'รายการด่วน' },
+                  { key: 'savingsPlans', label: 'แผนออม' },
+                  { key: 'savingsCashFlows', label: 'กระแสเงิน (แผนออม)' },
+                  { key: 'scheduledPayments', label: 'การจ่าย/รับล่วงหน้า' },
+                ] as { key: keyof ImportPreview; label: string }[]
+              ).map(({ key, label }) => {
+                const n = importPayload?.preview[key] ?? 0
+                if (!n) return null
+                return (
+                  <div key={key} className="flex justify-between text-sm">
+                    <span className="text-gray-500">{label}</span>
+                    <span className="font-medium">{n} รายการ</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Mode */}
+          <div>
+            <p className="text-xs text-gray-500 mb-2">รูปแบบการนำเข้า</p>
+            <div className="space-y-2">
+              <button
+                onClick={() => setImportMode('merge')}
+                className={`w-full text-left p-3 rounded-xl border-2 transition-colors ${importMode === 'merge' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950' : 'border-gray-200 dark:border-gray-700'}`}
+              >
+                <p className="text-sm font-semibold">เพิ่มเฉพาะที่ยังไม่มี</p>
+                <p className="text-xs text-gray-400 mt-0.5">รายการที่มี ID เดิมอยู่แล้วจะถูกข้าม ข้อมูลเดิมยังคงอยู่</p>
+              </button>
+              <button
+                onClick={() => setImportMode('overwrite')}
+                className={`w-full text-left p-3 rounded-xl border-2 transition-colors ${importMode === 'overwrite' ? 'border-red-500 bg-red-50 dark:bg-red-950' : 'border-gray-200 dark:border-gray-700'}`}
+              >
+                <p className="text-sm font-semibold text-red-600 dark:text-red-400">ทับข้อมูลทั้งหมด</p>
+                <p className="text-xs text-gray-400 mt-0.5">ลบข้อมูลทั้งหมดที่มีอยู่ก่อน แล้วนำเข้าใหม่ทั้งหมด</p>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Button variant="secondary" fullWidth onClick={() => setImportPayload(null)}>ยกเลิก</Button>
+            <Button
+              fullWidth
+              variant={importMode === 'overwrite' ? 'danger' : undefined}
+              onClick={handleConfirmImport}
+            >
+              นำเข้า
+            </Button>
           </div>
         </div>
       </Modal>
