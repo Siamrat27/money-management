@@ -130,11 +130,16 @@ export default function Dashboard() {
   const [autoResult, setAutoResult] = useState<AutoProcessResult | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
-  // Run auto-process on mount and on login
+  // On login/mount: pull cloud first so Dexie is populated, then auto-process
   useEffect(() => {
-    runAutoProcess(userId).then((result) => {
+    async function init() {
+      if (user && isSupabaseConfigured) {
+        await pullFromCloud(user.id).catch(console.error)
+      }
+      const result = await runAutoProcess(userId)
       if (result.scheduledCount + result.recurringCount > 0) setAutoResult(result)
-    })
+    }
+    init()
   }, [userId])
 
   // Auto-dismiss the result banner after 5s
