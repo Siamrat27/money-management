@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { ChevronLeft, ChevronRight, CalendarClock, RefreshCcw } from 'lucide-react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import { useAccounts } from '../hooks/useAccounts'
@@ -7,12 +7,20 @@ import { useTags } from '../hooks/useTags'
 import Card from '../components/ui/Card'
 import Header from '../components/layout/Header'
 import { formatAmount } from '../utils/formatters'
-import { formatDate, getMonthRange } from '../utils/dateHelpers'
+import { formatDate, getMonthRange, nextDueDate, startOfDay } from '../utils/dateHelpers'
 import { useAuthStore } from '../stores/useAuthStore'
 import { LOCAL_USER_ID } from '../db/db'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, getDay, startOfWeek, endOfWeek, addMonths, subMonths } from 'date-fns'
 import { th } from 'date-fns/locale'
 import type { Transaction } from '../types'
+
+interface UpcomingEvent {
+  date: Date
+  name: string
+  amount: number
+  type: 'income' | 'expense'
+  kind: 'scheduled' | 'recurring'
+}
 
 const WEEKDAYS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
 
@@ -32,6 +40,38 @@ export default function Calendar() {
 
   const accounts = useAccounts()
   const tags = useTags()
+
+  // Upcoming events (scheduled payments + projected recurring) in this month
+  const activeScheduled = useLiveQuery(
+    () => db.scheduledPayments.where('userId').equals(userId).filter((p) => p.isActive).toArray(),
+    [userId]
+  ) ?? []
+  const activeRecurring = useLiveQuery(
+    () => db.recurring.where('userId').equals(userId).filter((r) => r.isActive).toArray(),
+    [userId]
+  ) ?? []
+
+  const monthEvents = useMemo<UpcomingEvent[]>(() => {
+    const today = startOfDay(new Date())
+    const events: UpcomingEvent[] = []
+    for (const p of activeScheduled) {
+      if (p.dueDate >= from && p.dueDate <= to) {
+        events.push({ date: p.dueDate, name: p.note || (p.type === 'income' ? 'รายรับล่วงหน้า' : 'รายจ่ายล่วงหน้า'), amount: p.amount, type: p.type, kind: 'scheduled' })
+      }
+    }
+    for (const r of activeRecurring) {
+      let d = r.nextDueDate
+      let guard = 0
+      while (d <= to && (!r.endDate || d <= r.endDate) && guard < 62) {
+        if (d >= from && startOfDay(d) >= today) {
+          events.push({ date: d, name: r.name, amount: r.amount, type: r.type, kind: 'recurring' })
+        }
+        d = nextDueDate(d, r.frequency)
+        guard++
+      }
+    }
+    return events.sort((a, b) => a.date.getTime() - b.date.getTime())
+  }, [activeScheduled, activeRecurring, from.getTime(), to.getTime()])
 
   function getTag(id?: string) { return tags.find((t) => t.id === id) }
   function getAccount(id?: string) { return accounts.find((a) => a.id === id) }
@@ -54,6 +94,9 @@ export default function Calendar() {
 
   const selectedTxns = selected
     ? monthTxns.filter((t) => isSameDay(t.date, selected))
+    : []
+  const selectedEvents = selected
+    ? monthEvents.filter((e) => isSameDay(e.date, selected))
     : []
 
   const monthIncome = monthTxns.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
@@ -104,6 +147,7 @@ export default function Calendar() {
               const isSelected = selected && isSameDay(day, selected)
               const isToday = isSameDay(day, new Date())
               const hasTxn = monthTxns.some((t) => isSameDay(t.date, day))
+              const hasEvent = monthEvents.some((e) => isSameDay(e.date, day))
 
               return (
                 <button
@@ -113,6 +157,9 @@ export default function Calendar() {
                     isSelected ? 'bg-indigo-500 text-white' : isToday ? 'bg-indigo-50 dark:bg-indigo-950' : 'active:bg-gray-100 dark:active:bg-gray-800'
                   } ${!isCurrentMonth ? 'opacity-25' : ''}`}
                 >
+                  {hasEvent && (
+                    <span className={`absolute top-1 right-1.5 w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-purple-500'}`} />
+                  )}
                   <span className={`text-sm font-medium ${isToday && !isSelected ? 'text-indigo-500' : ''}`}>
                     {format(day, 'd')}
                   </span>
@@ -133,6 +180,27 @@ export default function Calendar() {
         {selected && (
           <div>
             <p className="font-semibold text-sm text-gray-500 mb-2">{formatDate(selected, 'd MMMM yyyy')}</p>
+            {selectedEvents.length > 0 && (
+              <Card className="mb-3">
+                <p className="text-xs font-semibold text-purple-500 px-4 pt-3 pb-1">📌 กำหนดการ</p>
+                {selectedEvents.map((e, i) => (
+                  <div key={i} className={`flex items-center gap-3 px-4 py-2.5 ${i > 0 ? 'border-t border-gray-50 dark:border-gray-800' : ''} ${i === selectedEvents.length - 1 ? 'pb-3' : ''}`}>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-purple-50 dark:bg-purple-950 text-purple-500">
+                      {e.kind === 'scheduled' ? <CalendarClock size={16} /> : <RefreshCcw size={16} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{e.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {e.kind === 'scheduled' ? `ล่วงหน้า · ${format(e.date, 'HH:mm')}` : 'รายการต่อเนื่อง'}
+                      </p>
+                    </div>
+                    <p className={`text-sm font-bold ${e.type === 'income' ? 'text-green-500' : 'text-red-500'}`}>
+                      {e.type === 'income' ? '+' : '-'}฿{formatAmount(e.amount)}
+                    </p>
+                  </div>
+                ))}
+              </Card>
+            )}
             {selectedTxns.length === 0 ? (
               <Card className="p-4 text-center text-gray-400 text-sm">ไม่มีรายการ</Card>
             ) : (
