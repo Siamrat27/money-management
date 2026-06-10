@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ArrowLeftRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { useAccounts, getAccountBalance, calcBalance } from '../hooks/useAccounts'
@@ -47,6 +47,10 @@ export default function AddTransaction() {
   const [recurringName, setRecurringName] = useState('')
   const [insufficientFunds, setInsufficientFunds] = useState(false)
 
+  // Tag auto-suggestion from note history: never override a manual pick
+  const tagManuallySet = useRef(false)
+  const [autoTagged, setAutoTagged] = useState(false)
+
   useEffect(() => {
     if (accounts.length > 0 && accountId === null) setAccountId(accounts[0].id)
   }, [accounts])
@@ -60,8 +64,31 @@ export default function AddTransaction() {
       setTagId(editTxn.tagId ?? null)
       setNote(editTxn.note)
       setDate(format(editTxn.date, 'yyyy-MM-dd'))
+      tagManuallySet.current = true // editing — keep the saved tag
+      setAutoTagged(false)
     }
   }, [editTxn])
+
+  // Suggest the tag most often used with similar notes (exact > prefix > contains)
+  useEffect(() => {
+    if (tagManuallySet.current || editTransactionId || type === 'transfer') return
+    const q = note.trim().toLowerCase()
+    if (q.length < 2) return
+    const matches = allTxns.filter((t) => t.type === type && t.tagId && t.note && t.note.toLowerCase().includes(q))
+    if (matches.length === 0) return
+    const scores = new Map<string, number>()
+    for (const m of matches) {
+      const n = m.note.toLowerCase()
+      const s = n === q ? 3 : n.startsWith(q) ? 2 : 1
+      scores.set(m.tagId!, (scores.get(m.tagId!) ?? 0) + s)
+    }
+    const bestId = [...scores.entries()].sort((a, b) => b[1] - a[1])[0][0]
+    const tag = tags.find((t) => t.id === bestId)
+    if (!tag) return
+    if (type === 'income' ? tag.type === 'expense' : tag.type === 'income') return
+    setTagId(bestId)
+    setAutoTagged(true)
+  }, [note, type, allTxns, tags, editTransactionId])
 
   function applyPreset(p: Preset) {
     setType(p.type)
@@ -71,6 +98,8 @@ export default function AddTransaction() {
     setTagId(p.tagId ?? null)
     setNote(p.note)
     setInsufficientFunds(false)
+    tagManuallySet.current = true // preset defines its own tag
+    setAutoTagged(false)
   }
 
   const filteredTags = tags.filter((t) => type === 'income' ? t.type !== 'expense' : type === 'expense' ? t.type !== 'income' : true)
@@ -125,6 +154,8 @@ export default function AddTransaction() {
     setAmount('0')
     setNote('')
     setIsRecurring(false)
+    tagManuallySet.current = false
+    setAutoTagged(false)
     setPage('dashboard')
   }
 
@@ -173,7 +204,7 @@ export default function AddTransaction() {
           {(['expense', 'income', 'transfer'] as TransactionType[]).map((t) => (
             <button
               key={t}
-              onClick={() => { setType(t); setTagId(null) }}
+              onClick={() => { setType(t); setTagId(null); tagManuallySet.current = false; setAutoTagged(false) }}
               className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${
                 type === t
                   ? t === 'income' ? 'bg-green-500 text-white'
@@ -250,12 +281,15 @@ export default function AddTransaction() {
           {/* Tag */}
           {type !== 'transfer' && (
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">หมวดหมู่</label>
+              <label className="text-xs text-gray-500 mb-1 block">
+                หมวดหมู่
+                {autoTagged && <span className="ml-1.5 text-indigo-400">💡 เลือกให้อัตโนมัติจากบันทึก</span>}
+              </label>
               <div className="flex gap-2 flex-wrap">
                 {filteredTags.map((tag) => (
                   <button
                     key={tag.id}
-                    onClick={() => setTagId(tagId === tag.id ? null : tag.id)}
+                    onClick={() => { setTagId(tagId === tag.id ? null : tag.id); tagManuallySet.current = true; setAutoTagged(false) }}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium border-2 transition-colors ${
                       tagId === tag.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'
                     }`}
