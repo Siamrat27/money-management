@@ -8,7 +8,6 @@ import { useAppStore } from '../stores/useAppStore'
 import { useAccounts, calcBalance } from '../hooks/useAccounts'
 import { useTransactions } from '../hooks/useTransactions'
 import { useTags } from '../hooks/useTags'
-import { useRecurring } from '../hooks/useRecurring'
 import { runAutoProcess } from '../services/autoProcess'
 import type { AutoProcessResult } from '../services/autoProcess'
 import { pullFromCloud } from '../services/sync'
@@ -18,8 +17,8 @@ import Badge from '../components/ui/Badge'
 import IconDisplay from '../components/ui/IconDisplay'
 import Header from '../components/layout/Header'
 import { formatCurrency, formatAmount } from '../utils/formatters'
-import { formatDate, formatDateShort, getMonthRange, getYearRange, getDayRange, today } from '../utils/dateHelpers'
-import { format, eachDayOfInterval, subMonths, getMonth } from 'date-fns'
+import { formatDate, formatDateShort, getMonthRange, getYearRange, getDayRange, today, nextDueDate, startOfDay } from '../utils/dateHelpers'
+import { format, eachDayOfInterval, subMonths, getMonth, addDays } from 'date-fns'
 import { th } from 'date-fns/locale'
 import type { Transaction } from '../types'
 
@@ -114,6 +113,64 @@ function useNetWorthTrend() {
   }, [userId]) ?? []
 }
 
+// Project future balance from active recurring + scheduled payments
+function useForecastEvents() {
+  const userId = useAuthStore((s) => s.user?.id ?? LOCAL_USER_ID)
+  const recurring = useLiveQuery(
+    () => db.recurring.where('userId').equals(userId).filter((r) => r.isActive).toArray(),
+    [userId]
+  ) ?? []
+  const scheduled = useLiveQuery(
+    () => db.scheduledPayments.where('userId').equals(userId).filter((p) => p.isActive).toArray(),
+    [userId]
+  ) ?? []
+  return { recurring, scheduled }
+}
+
+function buildForecast(
+  startBalance: number,
+  days: number,
+  recurring: ReturnType<typeof useForecastEvents>['recurring'],
+  scheduled: ReturnType<typeof useForecastEvents>['scheduled'],
+) {
+  const start = startOfDay(new Date())
+  const end = addDays(start, days)
+  const deltas = new Map<string, number>()
+  const addDelta = (d: Date, amt: number) => {
+    // anything overdue lands today
+    const day = d < start ? start : startOfDay(d)
+    const key = format(day, 'yyyy-MM-dd')
+    deltas.set(key, (deltas.get(key) ?? 0) + amt)
+  }
+
+  for (const p of scheduled) {
+    if (p.dueDate <= end) addDelta(p.dueDate, p.type === 'income' ? p.amount : -p.amount)
+  }
+  for (const r of recurring) {
+    let d = r.nextDueDate
+    let guard = 0
+    while (d <= end && (!r.endDate || d <= r.endDate) && guard < 200) {
+      addDelta(d, r.type === 'income' ? r.amount : -r.amount)
+      d = nextDueDate(d, r.frequency)
+      guard++
+    }
+  }
+
+  let balance = startBalance
+  const points: { name: string; balance: number }[] = []
+  for (let i = 0; i <= days; i++) {
+    const day = addDays(start, i)
+    balance += deltas.get(format(day, 'yyyy-MM-dd')) ?? 0
+    points.push({
+      name: i === 0 ? 'วันนี้' : (i % Math.ceil(days / 5) === 0 || i === days) ? format(day, 'd MMM', { locale: th }) : '',
+      balance: Math.round(balance),
+    })
+  }
+  const min = points.reduce((m, p) => (p.balance < m.balance ? p : m), points[0])
+  const minDay = points.indexOf(min)
+  return { points, min, minDate: addDays(start, minDay), endBalance: points[points.length - 1].balance }
+}
+
 export default function Dashboard() {
   const [period, setPeriod] = useState<Period>('month')
   const { setPage, setSubPage } = useAppStore()
@@ -124,7 +181,6 @@ export default function Dashboard() {
   const accounts = useAccounts()
   const allTxns = useTransactions()
   const tags = useTags()
-  useRecurring() // keep live subscription so Dexie updates propagate
   const recent = allTxns.slice(0, 5)
 
   const [autoResult, setAutoResult] = useState<AutoProcessResult | null>(null)
@@ -165,6 +221,12 @@ export default function Dashboard() {
   const savings = useSavingsSummary()
   const netWorthData = useNetWorthTrend()
   const totalBalance = accounts.reduce((sum, acc) => sum + calcBalance(acc.id, allTxns), 0)
+
+  // Cash flow forecast
+  const [forecastDays, setForecastDays] = useState<30 | 60 | 90>(30)
+  const { recurring: fcRecurring, scheduled: fcScheduled } = useForecastEvents()
+  const forecast = buildForecast(totalBalance, forecastDays, fcRecurring, fcScheduled)
+  const hasForecastEvents = fcRecurring.length > 0 || fcScheduled.length > 0
 
   function getTag(id?: string) { return tags.find((t) => t.id === id) }
   function getAccount(id?: string) { return accounts.find((a) => a.id === id) }
@@ -349,6 +411,45 @@ export default function Dashboard() {
             <div className="flex justify-between mt-1 text-xs text-gray-400">
               <span>30 วันที่แล้ว: ฿{formatAmount(netWorthData[0]?.balance ?? 0)}</span>
               <span className="text-teal-500 font-medium">วันนี้: ฿{formatAmount(netWorthData[netWorthData.length - 1]?.balance ?? 0)}</span>
+            </div>
+          </Card>
+        )}
+
+        {/* Cash Flow Forecast */}
+        {hasForecastEvents && (
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">พยากรณ์เงินคงเหลือ</p>
+              <div className="flex bg-gray-100 dark:bg-gray-800 rounded-xl p-0.5 gap-0.5">
+                {([30, 60, 90] as const).map((d) => (
+                  <button key={d} onClick={() => setForecastDays(d)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${forecastDays === d ? 'bg-white dark:bg-gray-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-gray-500'}`}>
+                    {d}วัน
+                  </button>
+                ))}
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={110}>
+              <AreaChart data={forecast.points} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="forecastGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area type="stepAfter" dataKey="balance" stroke="#8b5cf6" strokeWidth={2} fill="url(#forecastGrad)" dot={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis hide domain={['auto', 'auto']} />
+                <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: 12, fontSize: 11, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+              </AreaChart>
+            </ResponsiveContainer>
+            <div className="flex justify-between mt-1 text-xs">
+              <span className={forecast.min.balance < 0 ? 'text-red-500 font-semibold' : 'text-gray-400'}>
+                {forecast.min.balance < 0 ? '⚠️ ' : ''}ต่ำสุด ฿{formatAmount(forecast.min.balance)} ({format(forecast.minDate, 'd MMM', { locale: th })})
+              </span>
+              <span className={`font-medium ${forecast.endBalance >= totalBalance ? 'text-green-500' : 'text-orange-500'}`}>
+                สิ้นช่วง: ฿{formatAmount(forecast.endBalance)}
+              </span>
             </div>
           </Card>
         )}
