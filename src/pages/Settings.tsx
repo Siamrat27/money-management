@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { APP_VERSION } from '../version'
-import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List, LogOut, RefreshCw, Zap, Bell, PiggyBank, CalendarClock } from 'lucide-react'
+import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List, LogOut, RefreshCw, Zap, Bell, PiggyBank, CalendarClock, Target } from 'lucide-react'
 import IconDisplay from '../components/ui/IconDisplay'
 import { uploadIcon, isUrlIcon } from '../lib/storage'
 import { useTags, addTag, updateTag, deleteTag, restoreTag } from '../hooks/useTags'
@@ -214,6 +214,7 @@ export default function Settings() {
             { icon: RefreshCcw, label: 'ต่อเนื่อง', action: () => setSubPage('recurring') },
             { icon: PiggyBank, label: 'แผนออม', action: () => setSubPage('savings-planner') },
             { icon: CalendarClock, label: 'ล่วงหน้า', action: () => setSubPage('scheduled-payments') },
+            { icon: Target, label: 'งบประมาณ', action: () => setSubPage('budgets') },
           ].map(({ icon: Icon, label, action }) => (
             <Card key={label} className="p-4 text-center cursor-pointer active:scale-[0.98] transition-transform" onClick={action}>
               <Icon size={24} className="mx-auto mb-1 text-indigo-500" />
