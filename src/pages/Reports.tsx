@@ -12,7 +12,7 @@ import { useAuthStore } from '../stores/useAuthStore'
 import { LOCAL_USER_ID } from '../db/db'
 import { getDayRange, getMonthRange, getYearRange } from '../utils/dateHelpers'
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts'
-import { format, eachDayOfInterval, eachMonthOfInterval } from 'date-fns'
+import { format, eachDayOfInterval, eachMonthOfInterval, subMonths } from 'date-fns'
 import { th } from 'date-fns/locale'
 
 type Period = 'day' | 'month' | 'year' | 'custom'
@@ -87,6 +87,27 @@ export default function Reports() {
           return { tag, spent, budget, pct: (spent / budget) * 100 }
         })
         .sort((a, b) => b.pct - a.pct)
+    : []
+
+  // Month-over-month comparison per expense category (current month period only)
+  const lastMonthTxns = useLiveQuery(() => {
+    if (period !== 'month') return Promise.resolve([])
+    const [lmFrom, lmTo] = getMonthRange(subMonths(now, 1))
+    return db.transactions.where('date').between(lmFrom, lmTo, true, true)
+      .filter((t) => t.userId === userId && t.type === 'expense')
+      .toArray()
+  }, [period, userId]) ?? []
+
+  const monthCompare = period === 'month'
+    ? tags
+        .filter((t) => t.type !== 'income')
+        .map((tag) => {
+          const cur = txns.filter((t) => t.type === 'expense' && t.tagId === tag.id).reduce((s, t) => s + t.amount, 0)
+          const prev = lastMonthTxns.filter((t) => t.tagId === tag.id).reduce((s, t) => s + t.amount, 0)
+          return { tag, cur, prev, diff: cur - prev }
+        })
+        .filter((d) => d.cur > 0 || d.prev > 0)
+        .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff))
     : []
 
   const trendData = useLiveQuery(async () => {
@@ -272,6 +293,40 @@ export default function Reports() {
                 </BarChart>
               )}
             </ResponsiveContainer>
+          </Card>
+        )}
+
+        {/* Month-over-month per category */}
+        {monthCompare.length > 0 && (
+          <Card className="p-4">
+            <p className="text-sm font-semibold text-gray-500 mb-3">เทียบกับเดือนที่แล้ว</p>
+            <div className="space-y-2.5">
+              {monthCompare.map(({ tag, cur, prev, diff }) => {
+                const pctChange = prev > 0 ? (diff / prev) * 100 : null
+                const up = diff > 0 // spent more = bad
+                return (
+                  <div key={tag.id} className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center overflow-hidden text-base flex-shrink-0"
+                      style={{ backgroundColor: tag.color + '22' }}>
+                      <IconDisplay icon={tag.icon} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{tag.name}</p>
+                      <p className="text-xs text-gray-400">เดือนก่อน ฿{formatAmount(prev)}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-bold">฿{formatAmount(cur)}</p>
+                      {diff !== 0 && (
+                        <p className={`text-xs font-semibold ${up ? 'text-red-500' : 'text-green-500'}`}>
+                          {up ? '▲' : '▼'} ฿{formatAmount(Math.abs(diff))}
+                          {pctChange !== null && ` (${Math.abs(pctChange).toFixed(0)}%)`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </Card>
         )}
 
