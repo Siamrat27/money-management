@@ -67,6 +67,10 @@ export interface Recurring {
 export interface UserSettings {
   userId: string
   discordWebhook?: string
+  dailySummary?: boolean       // send yesterday's summary on first open of a new day
+  weeklySummary?: boolean      // send last week's summary on first open of a new week
+  lastDailySummary?: string    // yyyy-MM-dd key of the last day summary sent
+  lastWeeklySummary?: string   // yyyy-MM-dd key (week start) of the last week summary sent
 }
 
 export interface SavingsPlan {
@@ -102,6 +106,7 @@ export interface ScheduledPayment {
   isActive: boolean
   executedAt?: Date
   transactionId?: string
+  remindedAt?: Date // when the "due soon" Discord reminder was sent
 }
 
 export type Page = 'dashboard' | 'add' | 'calendar' | 'reports' | 'settings'

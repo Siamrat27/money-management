@@ -363,6 +363,32 @@ export default function Settings() {
             {discordStatus === 'ok' && <p className="text-xs text-green-500 text-center">✅ ส่งสำเร็จ! เช็ค Discord ได้เลย</p>}
             {discordStatus === 'fail' && <p className="text-xs text-red-500 text-center">❌ ส่งไม่ได้ — ตรวจสอบ URL อีกครั้ง</p>}
           </div>
+
+          {/* Summary toggles */}
+          {!!userSettings?.discordWebhook && (
+            <div className="space-y-2.5 pt-1">
+              {([
+                { key: 'dailySummary' as const, label: 'สรุปประจำวัน', desc: 'ส่งสรุปของเมื่อวานเมื่อเปิดแอปครั้งแรกของวัน' },
+                { key: 'weeklySummary' as const, label: 'สรุปประจำสัปดาห์', desc: 'ส่งสรุปสัปดาห์ก่อนเมื่อเปิดแอปครั้งแรกของสัปดาห์' },
+              ]).map(({ key, label, desc }) => {
+                const enabled = !!userSettings?.[key]
+                return (
+                  <label key={key} className="flex items-center gap-3 cursor-pointer">
+                    <button
+                      onClick={() => saveUserSettings({ [key]: !enabled })}
+                      className={`w-11 h-6 rounded-full transition-colors flex items-center flex-shrink-0 ${enabled ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <span className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${enabled ? 'translate-x-5' : ''}`} />
+                    </button>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{label}</p>
+                      <p className="text-xs text-gray-400">{desc}</p>
+                    </div>
+                  </label>
+                )
+              })}
+            </div>
+          )}
           <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 space-y-1">
             <p className="text-xs font-medium text-gray-500">วิธีสร้าง Webhook URL:</p>
             <p className="text-xs text-gray-400">Discord → Channel Settings → Integrations → Webhooks → New Webhook → Copy URL</p>

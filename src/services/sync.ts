@@ -305,13 +305,24 @@ function rowToTransaction(r: Record<string, unknown>): Transaction {
 }
 
 function settingsToRow(s: UserSettings) {
-  return { user_id: s.userId, discord_webhook: s.discordWebhook ?? null }
+  return {
+    user_id: s.userId,
+    discord_webhook: s.discordWebhook ?? null,
+    daily_summary: s.dailySummary ?? false,
+    weekly_summary: s.weeklySummary ?? false,
+    last_daily_summary: s.lastDailySummary ?? null,
+    last_weekly_summary: s.lastWeeklySummary ?? null,
+  }
 }
 
 function rowToSettings(r: Record<string, unknown>): UserSettings {
   return {
     userId: r.user_id as string,
     discordWebhook: (r.discord_webhook as string | null) ?? undefined,
+    dailySummary: (r.daily_summary as boolean | null) ?? undefined,
+    weeklySummary: (r.weekly_summary as boolean | null) ?? undefined,
+    lastDailySummary: (r.last_daily_summary as string | null) ?? undefined,
+    lastWeeklySummary: (r.last_weekly_summary as string | null) ?? undefined,
   }
 }
 
@@ -396,6 +407,7 @@ function scheduledPaymentToRow(p: ScheduledPayment) {
     due_date: p.dueDate.toISOString(), is_active: p.isActive,
     executed_at: p.executedAt?.toISOString() ?? null,
     transaction_id: p.transactionId ?? null,
+    reminded_at: p.remindedAt?.toISOString() ?? null,
   }
 }
 
@@ -407,5 +419,6 @@ function rowToScheduledPayment(r: Record<string, unknown>): ScheduledPayment {
     dueDate: new Date(r.due_date as string), isActive: r.is_active as boolean,
     executedAt: r.executed_at ? new Date(r.executed_at as string) : undefined,
     transactionId: (r.transaction_id as string | null) ?? undefined,
+    remindedAt: r.reminded_at ? new Date(r.reminded_at as string) : undefined,
   }
 }

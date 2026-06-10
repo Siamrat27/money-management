@@ -56,8 +56,12 @@ create table public.recurring (
 
 -- ── user_settings ────────────────────────────────────────────────────────────
 create table public.user_settings (
-  user_id          uuid primary key references auth.users(id) on delete cascade,
-  discord_webhook  text default null
+  user_id              uuid primary key references auth.users(id) on delete cascade,
+  discord_webhook      text default null,
+  daily_summary        boolean not null default false,
+  weekly_summary       boolean not null default false,
+  last_daily_summary   text default null,
+  last_weekly_summary  text default null
 );
 
 -- ── Row Level Security ───────────────────────────────────────────────────────
@@ -202,7 +206,8 @@ create table public.scheduled_payments (
   due_date       timestamptz not null,
   is_active      boolean not null default true,
   executed_at    timestamptz,
-  transaction_id text
+  transaction_id text,
+  reminded_at    timestamptz
 );
 
 alter table public.savings_plans     enable row level security;

@@ -1,8 +1,8 @@
-import { format } from 'date-fns'
+import { format, differenceInHours } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { db, LOCAL_USER_ID } from '../db/db'
 import { useAuthStore } from '../stores/useAuthStore'
-import { getMonthRange } from '../utils/dateHelpers'
+import { getMonthRange, getDayRange } from '../utils/dateHelpers'
 import { formatAmount } from '../utils/formatters'
 import { isUrlIcon } from './storage'
 import type { Transaction, SavingsPlan, ScheduledPayment } from '../types'
@@ -169,6 +169,111 @@ export async function notifySavingsPlanCreated(plan: SavingsPlan) {
     footer: { text: 'PocketFlow' },
     timestamp: new Date().toISOString(),
   }])
+}
+
+// "Due soon" reminder — sent once per payment (tracked via remindedAt)
+export async function notifyScheduledPaymentUpcoming(payment: ScheduledPayment) {
+  const url = await getWebhookUrl()
+  if (!url) return
+
+  const [account, tag] = await Promise.all([
+    db.accounts.get(payment.accountId),
+    payment.tagId ? db.tags.get(payment.tagId) : Promise.resolve(undefined),
+  ])
+
+  const isIncome = payment.type === 'income'
+  const hoursLeft = Math.max(0, differenceInHours(payment.dueDate, new Date()))
+  const whenText = hoursLeft <= 1 ? 'ภายใน 1 ชั่วโมง' : `อีกประมาณ ${hoursLeft} ชั่วโมง`
+
+  const fields: DiscordEmbed['fields'] = [
+    { name: '📅 กำหนด', value: format(payment.dueDate, 'd MMM yyyy · HH:mm น.', { locale: th }), inline: true },
+    { name: '⏰ เหลือเวลา', value: whenText, inline: true },
+  ]
+  if (tag) fields.push({ name: '🏷️ หมวดหมู่', value: `${textIcon(tag.icon, '🏷️')} ${tag.name}`, inline: true })
+  if (account) fields.push({ name: '🏦 บัญชี', value: `${textIcon(account.icon, '🏦')} ${account.name}`, inline: true })
+  if (payment.note) fields.push({ name: '📝 บันทึก', value: payment.note, inline: false })
+
+  await postToDiscord(url, [{
+    title: `⏰ ใกล้ถึงกำหนด${isIncome ? 'รับ' : 'จ่าย'}  ${isIncome ? '+' : '-'}฿${formatAmount(payment.amount)}`,
+    color: 0xf59e0b,
+    fields,
+    footer: { text: 'PocketFlow · แจ้งเตือนล่วงหน้า' },
+    timestamp: new Date().toISOString(),
+  }])
+}
+
+// Build income/expense/top-categories summary for a date range
+async function summarizeRange(userId: string, from: Date, to: Date) {
+  const txns = await db.transactions
+    .where('date').between(from, to, true, true)
+    .filter((t) => t.userId === userId)
+    .toArray()
+  const income = txns.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+  const expense = txns.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+  const byTag = new Map<string, number>()
+  for (const t of txns) {
+    if (t.type === 'expense' && t.tagId) byTag.set(t.tagId, (byTag.get(t.tagId) ?? 0) + t.amount)
+  }
+  const topTagIds = [...byTag.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
+  const tags = await Promise.all(topTagIds.map(([id]) => db.tags.get(id)))
+  const topCategories = topTagIds.map(([id, amt], i) => {
+    const tag = tags[i]
+    return tag ? `${textIcon(tag.icon, '🏷️')} ${tag.name} ฿${formatAmount(amt)}` : `฿${formatAmount(amt)} (${id})`
+  })
+  return { count: txns.length, income, expense, net: income - expense, topCategories }
+}
+
+// Daily summary of yesterday — fired on first app open of a new day
+export async function sendDailySummary(userId: string, yesterday: Date): Promise<boolean> {
+  const url = await getWebhookUrl()
+  if (!url) return false
+  const [from, to] = getDayRange(yesterday)
+  const s = await summarizeRange(userId, from, to)
+  if (s.count === 0) return true // nothing to report, but mark as sent
+
+  const fields: DiscordEmbed['fields'] = [
+    { name: '💰 รายรับ', value: `฿${formatAmount(s.income)}`, inline: true },
+    { name: '💸 รายจ่าย', value: `฿${formatAmount(s.expense)}`, inline: true },
+    { name: s.net >= 0 ? '✅ คงเหลือ' : '⚠️ ติดลบ', value: `฿${formatAmount(Math.abs(s.net))}`, inline: true },
+  ]
+  if (s.topCategories.length) {
+    fields.push({ name: '🏷️ ใช้จ่ายมากสุด', value: s.topCategories.join('\n'), inline: false })
+  }
+
+  await postToDiscord(url, [{
+    title: `📋 สรุปประจำวัน — ${format(yesterday, 'd MMM yyyy', { locale: th })}`,
+    color: 0x6366f1,
+    fields,
+    footer: { text: `PocketFlow · ${s.count} รายการ` },
+    timestamp: new Date().toISOString(),
+  }])
+  return true
+}
+
+// Weekly summary of last week (Mon–Sun) — fired on first app open of a new week
+export async function sendWeeklySummary(userId: string, weekStart: Date, weekEnd: Date): Promise<boolean> {
+  const url = await getWebhookUrl()
+  if (!url) return false
+  const s = await summarizeRange(userId, weekStart, weekEnd)
+  if (s.count === 0) return true
+
+  const fields: DiscordEmbed['fields'] = [
+    { name: '💰 รายรับ', value: `฿${formatAmount(s.income)}`, inline: true },
+    { name: '💸 รายจ่าย', value: `฿${formatAmount(s.expense)}`, inline: true },
+    { name: s.net >= 0 ? '✅ ออมได้' : '⚠️ ติดลบ', value: `฿${formatAmount(Math.abs(s.net))}`, inline: true },
+  ]
+  if (s.topCategories.length) {
+    fields.push({ name: '🏷️ ใช้จ่ายมากสุด', value: s.topCategories.join('\n'), inline: false })
+  }
+
+  await postToDiscord(url, [{
+    title: `📊 สรุปประจำสัปดาห์ — ${format(weekStart, 'd MMM', { locale: th })} ถึง ${format(weekEnd, 'd MMM yyyy', { locale: th })}`,
+    color: 0x8b5cf6,
+    fields,
+    footer: { text: `PocketFlow · ${s.count} รายการ` },
+    timestamp: new Date().toISOString(),
+  }])
+  return true
 }
 
 export async function notifyScheduledPaymentExecuted(payment: ScheduledPayment) {
