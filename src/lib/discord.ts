@@ -129,7 +129,7 @@ export async function notifyNewTransaction(txn: Transaction) {
     const [from, to] = getMonthRange(txn.date)
     const monthTxns = await db.transactions
       .where('date').between(from, to, true, true)
-      .filter((t) => t.type === 'expense' && t.tagId === txn.tagId)
+      .filter((t) => t.userId === txn.userId && t.type === 'expense' && t.tagId === txn.tagId)
       .toArray()
     const totalSpent = monthTxns.reduce((s, t) => s + t.amount, 0)
 

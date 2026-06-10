@@ -83,13 +83,16 @@ export const useAuthStore = create<AuthStore>((set) => ({
     const userId = useAuthStore.getState().user?.id
     if (isSupabaseConfigured) await supabase.auth.signOut()
     if (userId) {
-      await db.transaction('rw', [db.accounts, db.tags, db.transactions, db.recurring, db.userSettings, db.presets], async () => {
+      await db.transaction('rw', [db.accounts, db.tags, db.transactions, db.recurring, db.userSettings, db.presets, db.savingsPlans, db.savingsCashFlows, db.scheduledPayments], async () => {
         await db.accounts.where('userId').equals(userId).delete()
         await db.tags.where('userId').equals(userId).delete()
         await db.transactions.where('userId').equals(userId).delete()
         await db.recurring.where('userId').equals(userId).delete()
         await db.userSettings.where('userId').equals(userId).delete()
         await db.presets.where('userId').equals(userId).delete()
+        await db.savingsPlans.where('userId').equals(userId).delete()
+        await db.savingsCashFlows.where('userId').equals(userId).delete()
+        await db.scheduledPayments.where('userId').equals(userId).delete()
       })
     }
     set({ user: null, session: null })

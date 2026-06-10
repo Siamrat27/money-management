@@ -15,7 +15,11 @@ export function useSavingsPlans() {
 }
 
 export function useSavingsCashFlows(planId: string) {
-  return useLiveQuery(() => db.savingsCashFlows.where('planId').equals(planId).toArray(), [planId]) ?? []
+  const userId = useAuthStore((s) => s.user?.id ?? LOCAL_USER_ID)
+  return useLiveQuery(
+    () => db.savingsCashFlows.where('planId').equals(planId).filter((c) => c.userId === userId).toArray(),
+    [planId, userId]
+  ) ?? []
 }
 
 export async function addSavingsPlan(data: Omit<SavingsPlan, 'id' | 'userId'>): Promise<string> {

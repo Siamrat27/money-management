@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, LOCAL_USER_ID } from '../db/db'
 import { useAuthStore } from '../stores/useAuthStore'
 import { pushRecurring, deleteCloudRecurring } from '../services/sync'
-import { nextDueDate, startOfDay } from '../utils/dateHelpers'
+import { nextDueDate } from '../utils/dateHelpers'
 import { addTransaction } from './useTransactions'
 import type { Recurring } from '../types'
 
@@ -31,15 +31,6 @@ export async function updateRecurring(id: string, data: Partial<Recurring>) {
 export async function deleteRecurring(id: string) {
   await db.recurring.delete(id)
   deleteCloudRecurring(id).catch(console.error)
-}
-
-export async function checkAndProcessRecurring(): Promise<Recurring[]> {
-  const userId = currentUserId()
-  const today = startOfDay(new Date())
-  return db.recurring
-    .where('userId').equals(userId)
-    .filter((r) => r.isActive && startOfDay(r.nextDueDate) <= today)
-    .toArray()
 }
 
 export async function confirmRecurring(r: Recurring) {

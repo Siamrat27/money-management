@@ -3,7 +3,6 @@ import { Plus, Trash2, Edit2, Play, Pause } from 'lucide-react'
 import { useRecurring, addRecurring, updateRecurring, deleteRecurring, confirmRecurring, skipRecurring } from '../hooks/useRecurring'
 import { useAccounts } from '../hooks/useAccounts'
 import { useTags } from '../hooks/useTags'
-import { nextDueDate as calcNextDue } from '../utils/dateHelpers'
 import Card from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import Button from '../components/ui/Button'
@@ -11,7 +10,7 @@ import Header from '../components/layout/Header'
 import IconDisplay from '../components/ui/IconDisplay'
 import { isUrlIcon } from '../lib/storage'
 import { formatAmount } from '../utils/formatters'
-import { formatDate, frequencyLabel, today } from '../utils/dateHelpers'
+import { formatDate, frequencyLabel, today, startOfDay } from '../utils/dateHelpers'
 import { format } from 'date-fns'
 import type { Recurring, Frequency } from '../types'
 
@@ -68,7 +67,9 @@ export default function RecurringManager() {
   function getAccount(id: string) { return accounts.find((a) => a.id === id) }
   function getTag(id?: string) { return tags.find((t) => t.id === id) }
 
-  const isOverdue = (r: Recurring) => r.nextDueDate <= today()
+  // startOfDay so a due date with a time component still counts as due today
+  // (must match autoProcess's day-level comparison)
+  const isOverdue = (r: Recurring) => startOfDay(r.nextDueDate) <= today()
 
   return (
     <div className="min-h-screen pb-nav">

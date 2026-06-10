@@ -1,4 +1,5 @@
 import { db } from '../db/db'
+import { deleteAllCloudData, pushAllUserData } from '../services/sync'
 import type {
   Account, Tag, Transaction, Recurring, Preset,
   SavingsPlan, SavingsCashFlow, ScheduledPayment,
@@ -115,8 +116,11 @@ export async function importData(
   ]
 
   if (mode === 'overwrite') {
+    // Clear ONLY this user's rows (other users' local data must survive),
+    // and clear the cloud too — otherwise the next pull restores old data.
+    if (userId !== 'local') await deleteAllCloudData(userId)
     await db.transaction('rw', allTables, async () => {
-      for (const t of allTables) await t.clear()
+      for (const t of allTables) await t.where('userId').equals(userId).delete()
       if (accounts.length) await db.accounts.bulkAdd(accounts)
       if (tags.length) await db.tags.bulkAdd(tags)
       if (transactions.length) await db.transactions.bulkAdd(transactions)
@@ -162,4 +166,8 @@ export async function importData(
       if (newSch.length) await db.scheduledPayments.bulkAdd(newSch)
     })
   }
+
+  // Sync imported data up to the cloud — without this, the next pull
+  // would clear local and the imported data would vanish.
+  if (userId !== 'local') await pushAllUserData(userId)
 }

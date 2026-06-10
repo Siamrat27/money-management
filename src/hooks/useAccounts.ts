@@ -50,6 +50,16 @@ export async function updateAccount(id: string, data: Partial<Account>) {
 }
 
 export async function deleteAccount(id: string) {
-  await db.accounts.delete(id)
+  // Mirror the cloud's FK cascade locally so local and cloud stay consistent:
+  // transactions/recurring/presets/scheduledPayments referencing this account
+  // are deleted in the cloud via ON DELETE CASCADE; to_account_id is SET NULL.
+  await db.transaction('rw', [db.accounts, db.transactions, db.recurring, db.presets, db.scheduledPayments], async () => {
+    await db.transactions.where('accountId').equals(id).delete()
+    await db.transactions.where('toAccountId').equals(id).modify({ toAccountId: undefined })
+    await db.recurring.where('accountId').equals(id).delete()
+    await db.presets.where('accountId').equals(id).delete()
+    await db.scheduledPayments.where('userId').equals(currentUserId()).filter((p) => p.accountId === id).delete()
+    await db.accounts.delete(id)
+  })
   deleteCloudAccount(id).catch(console.error)
 }

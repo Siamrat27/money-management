@@ -5,7 +5,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, LOCAL_USER_ID } from '../db/db'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useAppStore } from '../stores/useAppStore'
-import { useAccounts } from '../hooks/useAccounts'
+import { useAccounts, calcBalance } from '../hooks/useAccounts'
 import { useTransactions } from '../hooks/useTransactions'
 import { useTags } from '../hooks/useTags'
 import { useRecurring } from '../hooks/useRecurring'
@@ -155,6 +155,8 @@ export default function Dashboard() {
       if (user && isSupabaseConfigured) await pullFromCloud(user.id)
       const result = await runAutoProcess(userId)
       if (result.scheduledCount + result.recurringCount > 0) setAutoResult(result)
+    } catch (e) {
+      useAuthStore.getState().setSyncError(String(e))
     } finally {
       setRefreshing(false)
     }
@@ -162,7 +164,7 @@ export default function Dashboard() {
 
   const savings = useSavingsSummary()
   const netWorthData = useNetWorthTrend()
-  const totalBalance = accounts.reduce((sum, acc) => sum + useAccountBalanceStatic(acc.id, allTxns), 0)
+  const totalBalance = accounts.reduce((sum, acc) => sum + calcBalance(acc.id, allTxns), 0)
 
   function getTag(id?: string) { return tags.find((t) => t.id === id) }
   function getAccount(id?: string) { return accounts.find((a) => a.id === id) }
@@ -215,7 +217,7 @@ export default function Dashboard() {
                 </span>
                 <div>
                   <p className="text-xs text-indigo-200">{acc.name}</p>
-                  <p className="text-sm font-semibold">฿{formatAmount(useAccountBalanceStatic(acc.id, allTxns))}</p>
+                  <p className="text-sm font-semibold">฿{formatAmount(calcBalance(acc.id, allTxns))}</p>
                 </div>
               </div>
             ))}
@@ -376,19 +378,6 @@ export default function Dashboard() {
 
     </div>
   )
-}
-
-function useAccountBalanceStatic(accountId: string, transactions: Transaction[]): number {
-  let balance = 0
-  for (const t of transactions) {
-    if (t.type === 'income' && t.accountId === accountId) balance += t.amount
-    if (t.type === 'expense' && t.accountId === accountId) balance -= t.amount
-    if (t.type === 'transfer') {
-      if (t.accountId === accountId) balance -= t.amount
-      if (t.toAccountId === accountId) balance += t.amount
-    }
-  }
-  return balance
 }
 
 function TransactionRow({ t, tag, account, toAccount }: { t: Transaction; tag?: { icon: string; name: string; color: string }; account?: { icon: string; name: string }; toAccount?: { icon: string; name: string } }) {

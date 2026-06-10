@@ -16,14 +16,17 @@ async function processScheduled(userId: string): Promise<number> {
     .where('userId').equals(userId)
     .filter((p) => p.isActive && p.dueDate <= now)
     .toArray()
+  let count = 0
   for (const payment of due) {
     try {
-      await executeScheduledPayment(payment)
+      // Record the transaction on its scheduled date, not the catch-up time
+      await executeScheduledPayment(payment, payment.dueDate)
+      count++
     } catch (e) {
       console.error('autoProcess: scheduled payment failed', payment.id, e)
     }
   }
-  return due.length
+  return count
 }
 
 // Process all due recurring transactions, catching up on missed periods.
@@ -40,8 +43,12 @@ async function processRecurring(userId: string): Promise<number> {
     let dueAt = rec.nextDueDate
     let iterations = 0
     try {
-      // Catch up on all missed periods up to today
-      while (startOfDay(dueAt) <= today && iterations < 60) {
+      // Catch up on all missed periods up to today — but never past endDate
+      while (
+        startOfDay(dueAt) <= today &&
+        (!rec.endDate || dueAt <= rec.endDate) &&
+        iterations < 60
+      ) {
         await addTransaction({
           type: rec.type,
           amount: rec.amount,
@@ -56,7 +63,7 @@ async function processRecurring(userId: string): Promise<number> {
         iterations++
         dueAt = nextDueDate(dueAt, rec.frequency)
       }
-      // Advance nextDueDate; deactivate if past endDate
+      // Advance nextDueDate; deactivate once the schedule passes endDate
       const isStillActive = !rec.endDate || dueAt <= rec.endDate
       await updateRecurring(rec.id, { nextDueDate: dueAt, isActive: isStillActive })
     } catch (e) {

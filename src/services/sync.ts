@@ -14,7 +14,20 @@ import type { Account, Tag, Transaction, Recurring, Preset, UserSettings, Saving
 
 // ─── Pull: Supabase → Dexie ──────────────────────────────────────────────────
 
-export async function pullFromCloud(userId: string): Promise<void> {
+// Dedupe concurrent pulls for the same user (e.g. App-level + Dashboard-level)
+// so a stale snapshot can't overwrite fresher local writes.
+let inflightPull: { userId: string; promise: Promise<void> } | null = null
+
+export function pullFromCloud(userId: string): Promise<void> {
+  if (inflightPull?.userId === userId) return inflightPull.promise
+  const promise = doPullFromCloud(userId).finally(() => {
+    if (inflightPull?.promise === promise) inflightPull = null
+  })
+  inflightPull = { userId, promise }
+  return promise
+}
+
+async function doPullFromCloud(userId: string): Promise<void> {
   if (!isSupabaseConfigured) return
 
   const [accRes, tagRes, txnRes, recRes, settingsRes, presetsRes, plansRes, cashFlowsRes, scheduledRes] = await Promise.all([
@@ -29,7 +42,12 @@ export async function pullFromCloud(userId: string): Promise<void> {
     supabase.from('scheduled_payments').select('*').eq('user_id', userId),
   ])
 
-  if (accRes.error) throw new Error(accRes.error.message)
+  // ALL queries must succeed before we destructively replace local data —
+  // a partial failure would otherwise silently wipe local tables.
+  const firstError = [accRes, tagRes, txnRes, recRes, settingsRes, presetsRes, plansRes, cashFlowsRes, scheduledRes]
+    .map((r) => r.error)
+    .find(Boolean)
+  if (firstError) throw new Error(firstError.message)
 
   await db.transaction('rw', [db.accounts, db.tags, db.transactions, db.recurring, db.userSettings, db.presets, db.savingsPlans, db.savingsCashFlows, db.scheduledPayments], async () => {
     // Clear existing cloud-user data
@@ -80,89 +98,133 @@ export async function pullFromCloud(userId: string): Promise<void> {
 
 // ─── Push: Dexie → Supabase (single record) ──────────────────────────────────
 
+// supabase-js returns errors instead of throwing — surface them so callers'
+// .catch(console.error) actually sees failed syncs.
+function throwIfError({ error }: { error: { message: string } | null }) {
+  if (error) throw new Error(error.message)
+}
+
 export async function pushAccount(a: Account) {
   if (!isSupabaseConfigured) return
-  await supabase.from('accounts').upsert(accountToRow(a))
+  throwIfError(await supabase.from('accounts').upsert(accountToRow(a)))
 }
 
 export async function deleteCloudAccount(id: string) {
   if (!isSupabaseConfigured) return
-  await supabase.from('accounts').delete().eq('id', id)
+  throwIfError(await supabase.from('accounts').delete().eq('id', id))
 }
 
 export async function pushTag(t: Tag) {
   if (!isSupabaseConfigured) return
-  await supabase.from('tags').upsert(tagToRow(t))
+  throwIfError(await supabase.from('tags').upsert(tagToRow(t)))
 }
 
 export async function deleteCloudTag(id: string) {
   if (!isSupabaseConfigured) return
-  await supabase.from('tags').delete().eq('id', id)
+  throwIfError(await supabase.from('tags').delete().eq('id', id))
 }
 
 export async function pushTransaction(t: Transaction) {
   if (!isSupabaseConfigured) return
-  await supabase.from('transactions').upsert(transactionToRow(t))
+  throwIfError(await supabase.from('transactions').upsert(transactionToRow(t)))
 }
 
 export async function deleteCloudTransaction(id: string) {
   if (!isSupabaseConfigured) return
-  await supabase.from('transactions').delete().eq('id', id)
+  throwIfError(await supabase.from('transactions').delete().eq('id', id))
 }
 
 export async function pushRecurring(r: Recurring) {
   if (!isSupabaseConfigured) return
-  await supabase.from('recurring').upsert(recurringToRow(r))
+  throwIfError(await supabase.from('recurring').upsert(recurringToRow(r)))
 }
 
 export async function deleteCloudRecurring(id: string) {
   if (!isSupabaseConfigured) return
-  await supabase.from('recurring').delete().eq('id', id)
+  throwIfError(await supabase.from('recurring').delete().eq('id', id))
 }
 
 export async function pushUserSettings(s: UserSettings) {
   if (!isSupabaseConfigured) return
-  await supabase.from('user_settings').upsert(settingsToRow(s))
+  throwIfError(await supabase.from('user_settings').upsert(settingsToRow(s)))
 }
 
 export async function pushPreset(p: Preset) {
   if (!isSupabaseConfigured) return
-  await supabase.from('presets').upsert(presetToRow(p))
+  throwIfError(await supabase.from('presets').upsert(presetToRow(p)))
 }
 
 export async function deleteCloudPreset(id: string) {
   if (!isSupabaseConfigured) return
-  await supabase.from('presets').delete().eq('id', id)
+  throwIfError(await supabase.from('presets').delete().eq('id', id))
 }
 
 export async function pushSavingsPlan(p: SavingsPlan) {
   if (!isSupabaseConfigured) return
-  await supabase.from('savings_plans').upsert(savingsPlanToRow(p))
+  throwIfError(await supabase.from('savings_plans').upsert(savingsPlanToRow(p)))
 }
 
 export async function deleteCloudSavingsPlan(id: string) {
   if (!isSupabaseConfigured) return
-  await supabase.from('savings_plans').delete().eq('id', id)
+  throwIfError(await supabase.from('savings_plans').delete().eq('id', id))
 }
 
 export async function pushSavingsCashFlow(c: SavingsCashFlow) {
   if (!isSupabaseConfigured) return
-  await supabase.from('savings_cash_flows').upsert(savingsCashFlowToRow(c))
+  throwIfError(await supabase.from('savings_cash_flows').upsert(savingsCashFlowToRow(c)))
 }
 
 export async function deleteCloudSavingsCashFlow(id: string) {
   if (!isSupabaseConfigured) return
-  await supabase.from('savings_cash_flows').delete().eq('id', id)
+  throwIfError(await supabase.from('savings_cash_flows').delete().eq('id', id))
 }
 
 export async function pushScheduledPayment(p: ScheduledPayment) {
   if (!isSupabaseConfigured) return
-  await supabase.from('scheduled_payments').upsert(scheduledPaymentToRow(p))
+  throwIfError(await supabase.from('scheduled_payments').upsert(scheduledPaymentToRow(p)))
 }
 
 export async function deleteCloudScheduledPayment(id: string) {
   if (!isSupabaseConfigured) return
-  await supabase.from('scheduled_payments').delete().eq('id', id)
+  throwIfError(await supabase.from('scheduled_payments').delete().eq('id', id))
+}
+
+// ─── Bulk: used by import ────────────────────────────────────────────────────
+
+// Delete ALL cloud data for a user (overwrite-import). Accounts cascade to
+// transactions/recurring/presets/scheduled_payments, but delete explicitly
+// anyway so nothing survives if cascades change.
+export async function deleteAllCloudData(userId: string) {
+  if (!isSupabaseConfigured) return
+  // children first to avoid FK violations
+  for (const table of ['transactions', 'recurring', 'presets', 'scheduled_payments', 'savings_cash_flows', 'savings_plans', 'tags', 'accounts'] as const) {
+    throwIfError(await supabase.from(table).delete().eq('user_id', userId))
+  }
+}
+
+// Push every local record of this user to the cloud (after import).
+export async function pushAllUserData(userId: string) {
+  if (!isSupabaseConfigured) return
+  const [accounts, tags, transactions, recurring, presets, savingsPlans, savingsCashFlows, scheduledPayments] =
+    await Promise.all([
+      db.accounts.where('userId').equals(userId).toArray(),
+      db.tags.where('userId').equals(userId).toArray(),
+      db.transactions.where('userId').equals(userId).toArray(),
+      db.recurring.where('userId').equals(userId).toArray(),
+      db.presets.where('userId').equals(userId).toArray(),
+      db.savingsPlans.where('userId').equals(userId).toArray(),
+      db.savingsCashFlows.where('userId').equals(userId).toArray(),
+      db.scheduledPayments.where('userId').equals(userId).toArray(),
+    ])
+  // parents first so FK references resolve
+  if (accounts.length) throwIfError(await supabase.from('accounts').upsert(accounts.map(accountToRow)))
+  if (tags.length) throwIfError(await supabase.from('tags').upsert(tags.map(tagToRow)))
+  if (transactions.length) throwIfError(await supabase.from('transactions').upsert(transactions.map(transactionToRow)))
+  if (recurring.length) throwIfError(await supabase.from('recurring').upsert(recurring.map(recurringToRow)))
+  if (presets.length) throwIfError(await supabase.from('presets').upsert(presets.map(presetToRow)))
+  if (savingsPlans.length) throwIfError(await supabase.from('savings_plans').upsert(savingsPlans.map(savingsPlanToRow)))
+  if (savingsCashFlows.length) throwIfError(await supabase.from('savings_cash_flows').upsert(savingsCashFlows.map(savingsCashFlowToRow)))
+  if (scheduledPayments.length) throwIfError(await supabase.from('scheduled_payments').upsert(scheduledPayments.map(scheduledPaymentToRow)))
 }
 
 // ─── Seed defaults for new cloud users ───────────────────────────────────────

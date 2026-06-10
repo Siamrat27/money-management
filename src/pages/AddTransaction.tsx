@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ArrowLeftRight } from 'lucide-react'
 import { format } from 'date-fns'
-import { useAccounts, getAccountBalance } from '../hooks/useAccounts'
+import { useAccounts, getAccountBalance, calcBalance } from '../hooks/useAccounts'
 import { useTags } from '../hooks/useTags'
 import { addTransaction, updateTransaction, useTransactions } from '../hooks/useTransactions'
 import { usePresets } from '../hooks/usePresets'
@@ -28,18 +28,7 @@ export default function AddTransaction() {
   const allTxns = useTransactions()
   const presets = usePresets()
 
-  function calcBal(accountId: string): number {
-    let bal = 0
-    for (const t of allTxns) {
-      if (t.type === 'income' && t.accountId === accountId) bal += t.amount
-      if (t.type === 'expense' && t.accountId === accountId) bal -= t.amount
-      if (t.type === 'transfer') {
-        if (t.accountId === accountId) bal -= t.amount
-        if (t.toAccountId === accountId) bal += t.amount
-      }
-    }
-    return bal
-  }
+  const calcBal = (accountId: string) => calcBalance(accountId, allTxns)
 
   const editTxn = useLiveQuery(
     () => editTransactionId ? db.transactions.get(editTransactionId) : Promise.resolve(undefined),
@@ -89,6 +78,8 @@ export default function AddTransaction() {
   async function handleSave() {
     const amt = parseFloat(amount)
     if (!amt || amt <= 0 || !accountId) return
+    // transfer requires a destination account (different from source)
+    if (type === 'transfer' && (!toAccountId || toAccountId === accountId)) return
 
     setInsufficientFunds(false)
 

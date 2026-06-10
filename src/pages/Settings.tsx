@@ -9,7 +9,7 @@ import { usePresets, addPreset, updatePreset, deletePreset } from '../hooks/useP
 import { useUserSettings, saveUserSettings } from '../hooks/useSettings'
 import { useAppStore } from '../stores/useAppStore'
 import { useAuthStore } from '../stores/useAuthStore'
-import { pullFromCloud } from '../services/sync'
+import { pullFromCloud, deleteCloudTransaction, deleteCloudRecurring } from '../services/sync'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { sendTestDiscord } from '../lib/discord'
 import Card from '../components/ui/Card'
@@ -180,12 +180,24 @@ export default function Settings() {
     }
   }
 
+  const [clearConfirm, setClearConfirm] = useState(false)
+
   async function handleClear() {
-    if (!confirm('ลบข้อมูลทั้งหมด? ไม่สามารถย้อนกลับได้')) return
-    await db.transaction('rw', db.accounts, db.tags, db.transactions, db.recurring, async () => {
-      await db.transactions.clear()
-      await db.recurring.clear()
+    const userId = user?.id ?? 'local'
+    const [txns, recs] = await Promise.all([
+      db.transactions.where('userId').equals(userId).toArray(),
+      db.recurring.where('userId').equals(userId).toArray(),
+    ])
+    await db.transaction('rw', db.transactions, db.recurring, async () => {
+      await db.transactions.where('userId').equals(userId).delete()
+      await db.recurring.where('userId').equals(userId).delete()
     })
+    // mirror deletions to cloud
+    Promise.all([
+      ...txns.map((t) => deleteCloudTransaction(t.id)),
+      ...recs.map((r) => deleteCloudRecurring(r.id)),
+    ]).catch(console.error)
+    setClearConfirm(false)
   }
 
   return (
@@ -361,7 +373,7 @@ export default function Settings() {
             <AlertTriangle size={18} />
             <p className="font-semibold">โซนอันตราย</p>
           </div>
-          <Button variant="danger" fullWidth onClick={handleClear}>ลบรายการทั้งหมด</Button>
+          <Button variant="danger" fullWidth onClick={() => setClearConfirm(true)}>ลบรายการทั้งหมด</Button>
         </Card>
 
         <p className="text-center text-xs text-gray-300 pb-4">PocketFlow v{APP_VERSION} · {isSupabaseConfigured ? `☁️ ซิงค์ผ่าน Supabase` : '📱 โหมดใช้งานในเครื่อง'}</p>
@@ -511,6 +523,20 @@ export default function Settings() {
           <div className="flex gap-3">
             <Button variant="secondary" fullWidth onClick={() => setDeletePresetConfirm(null)}>ยกเลิก</Button>
             <Button variant="danger" fullWidth onClick={async () => { await deletePreset(deletePresetConfirm!.id); setDeletePresetConfirm(null) }}>ลบ</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── CLEAR ALL CONFIRM MODAL ── */}
+      <Modal open={clearConfirm} onClose={() => setClearConfirm(false)} title="ยืนยันการลบทั้งหมด">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            ลบ<span className="font-semibold">รายการและรายการต่อเนื่องทั้งหมด</span>ใช่หรือไม่?
+          </p>
+          <p className="text-xs text-red-400">⚠️ ไม่สามารถย้อนกลับได้ — บัญชีและหมวดหมู่จะยังคงอยู่</p>
+          <div className="flex gap-3">
+            <Button variant="secondary" fullWidth onClick={() => setClearConfirm(false)}>ยกเลิก</Button>
+            <Button variant="danger" fullWidth onClick={handleClear}>ลบทั้งหมด</Button>
           </div>
         </div>
       </Modal>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Plus, Edit2, Trash2, ArrowLeftRight } from 'lucide-react'
-import { useAccounts, addAccount, updateAccount, deleteAccount, getAccountBalance } from '../hooks/useAccounts'
+import { useAccounts, addAccount, updateAccount, deleteAccount, getAccountBalance, calcBalance } from '../hooks/useAccounts'
 import { useTransactions, addTransaction } from '../hooks/useTransactions'
 import { useTags } from '../hooks/useTags'
 import Card from '../components/ui/Card'
@@ -26,16 +26,7 @@ const ICONS = ['💵', '🏦', '🐷', '💳', '💰', '🏧', '📈', '🪙', '
 
 function useBalance(accountId: string): number {
   const txns = useTransactions()
-  let balance = 0
-  for (const t of txns) {
-    if (t.type === 'income' && t.accountId === accountId) balance += t.amount
-    if (t.type === 'expense' && t.accountId === accountId) balance -= t.amount
-    if (t.type === 'transfer') {
-      if (t.accountId === accountId) balance -= t.amount
-      if (t.toAccountId === accountId) balance += t.amount
-    }
-  }
-  return balance
+  return calcBalance(accountId, txns)
 }
 
 function AccountBalance({ id }: { id: string }) {
@@ -316,7 +307,7 @@ export default function Accounts() {
       <Modal open={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="ยืนยันการลบ">
         <div className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-300">ลบบัญชี <span className="font-semibold">"{deleteConfirm?.name}"</span> ใช่หรือไม่?</p>
-          <p className="text-xs text-gray-400">ประวัติรายการของบัญชีนี้จะยังคงอยู่</p>
+          <p className="text-xs text-red-400">⚠️ รายการ รายการต่อเนื่อง preset และรายการล่วงหน้าของบัญชีนี้จะถูกลบทั้งหมด</p>
           <div className="flex gap-3">
             <Button variant="secondary" fullWidth onClick={() => setDeleteConfirm(null)}>ยกเลิก</Button>
             <Button variant="danger" fullWidth onClick={async () => { await deleteAccount(deleteConfirm!.id); setDeleteConfirm(null) }}>ลบ</Button>

@@ -43,7 +43,9 @@ export async function updateScheduledPayment(id: string, data: Partial<Scheduled
   if (updated) pushScheduledPayment(updated).catch(console.error)
 }
 
-export async function executeScheduledPayment(payment: ScheduledPayment) {
+// txnDate: when auto-processed late, pass payment.dueDate so the transaction
+// lands on its scheduled date instead of "whenever the app was next opened".
+export async function executeScheduledPayment(payment: ScheduledPayment, txnDate?: Date) {
   const now = new Date()
   const txnId = await addTransaction({
     type: payment.type,
@@ -51,7 +53,7 @@ export async function executeScheduledPayment(payment: ScheduledPayment) {
     accountId: payment.accountId,
     tagId: payment.tagId,
     note: payment.note,
-    date: now,
+    date: txnDate ?? now,
     isRecurring: false,
   })
   const updated: ScheduledPayment = { ...payment, isActive: false, executedAt: now, transactionId: txnId }
