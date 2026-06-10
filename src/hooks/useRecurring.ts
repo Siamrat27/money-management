@@ -33,6 +33,12 @@ export async function deleteRecurring(id: string) {
   deleteCloudRecurring(id).catch(console.error)
 }
 
+// Put a previously deleted recurring back (undo)
+export async function restoreRecurring(r: Recurring) {
+  await db.recurring.put(r)
+  pushRecurring(r).catch(console.error)
+}
+
 export async function confirmRecurring(r: Recurring) {
   await addTransaction({
     type: r.type, amount: r.amount, accountId: r.accountId,

@@ -88,3 +88,9 @@ export async function deleteScheduledPayment(id: string) {
   await db.scheduledPayments.delete(id)
   deleteCloudScheduledPayment(id).catch(console.error)
 }
+
+// Put a previously deleted scheduled payment back (undo)
+export async function restoreScheduledPayment(p: ScheduledPayment) {
+  await db.scheduledPayments.put(p)
+  pushScheduledPayment(p).catch(console.error)
+}

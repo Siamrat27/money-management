@@ -6,8 +6,9 @@ import {
   useUpcomingPayments, usePaymentLog,
   addScheduledPayment, updateScheduledPayment,
   executeScheduledPayment, cancelScheduledPayment,
-  reactivateScheduledPayment, deleteScheduledPayment,
+  reactivateScheduledPayment, deleteScheduledPayment, restoreScheduledPayment,
 } from '../hooks/useScheduledPayments'
+import { useSnackbar } from '../stores/useSnackbar'
 import { useAccounts } from '../hooks/useAccounts'
 import { useTags } from '../hooks/useTags'
 import { useAppStore } from '../stores/useAppStore'
@@ -471,8 +472,10 @@ export default function ScheduledPayments() {
           <div className="flex gap-3">
             <Button variant="secondary" fullWidth onClick={() => setDeleteConfirm(null)}>ยกเลิก</Button>
             <Button variant="danger" fullWidth onClick={async () => {
-              await deleteScheduledPayment(deleteConfirm!.id)
+              const p = deleteConfirm!
+              await deleteScheduledPayment(p.id)
               setDeleteConfirm(null)
+              useSnackbar.getState().show('ลบรายการล่วงหน้าแล้ว', () => restoreScheduledPayment(p))
             }}>ลบ</Button>
           </div>
         </div>

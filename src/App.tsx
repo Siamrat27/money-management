@@ -5,6 +5,7 @@ import { useAuthStore } from './stores/useAuthStore'
 import { pullFromCloud } from './services/sync'
 import { isSupabaseConfigured } from './lib/supabase'
 import BottomNav from './components/layout/BottomNav'
+import Snackbar from './components/ui/Snackbar'
 import Dashboard from './pages/Dashboard'
 import AddTransaction from './pages/AddTransaction'
 import Calendar from './pages/Calendar'
@@ -68,6 +69,7 @@ export default function App() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <SyncBanner />
       {renderPage()}
+      <Snackbar />
       <BottomNav />
     </div>
   )

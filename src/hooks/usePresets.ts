@@ -30,3 +30,9 @@ export async function deletePreset(id: string) {
   await db.presets.delete(id)
   await deleteCloudPreset(id)
 }
+
+// Put a previously deleted preset back (undo)
+export async function restorePreset(p: Preset) {
+  await db.presets.put(p)
+  pushPreset(p).catch(console.error)
+}

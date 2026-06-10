@@ -36,10 +36,28 @@ export async function updateSavingsPlan(id: string, data: Partial<SavingsPlan>) 
   if (updated) pushSavingsPlan(updated).catch(console.error)
 }
 
-export async function deleteSavingsPlan(id: string) {
+export interface SavingsPlanSnapshot {
+  plan: SavingsPlan
+  cashFlows: SavingsCashFlow[]
+}
+
+// Returns a snapshot of everything deleted so the caller can offer undo
+export async function deleteSavingsPlan(id: string): Promise<SavingsPlanSnapshot | null> {
+  const plan = await db.savingsPlans.get(id)
+  if (!plan) return null
+  const cashFlows = await db.savingsCashFlows.where('planId').equals(id).toArray()
   await db.savingsCashFlows.where('planId').equals(id).delete()
   await db.savingsPlans.delete(id)
-  deleteCloudSavingsPlan(id).catch(console.error)
+  deleteCloudSavingsPlan(id).catch(console.error) // cloud cascades cash flows
+  return { plan, cashFlows }
+}
+
+// Put a previously deleted plan (and its cash flows) back (undo)
+export async function restoreSavingsPlan(snapshot: SavingsPlanSnapshot) {
+  await db.savingsPlans.put(snapshot.plan)
+  if (snapshot.cashFlows.length) await db.savingsCashFlows.bulkPut(snapshot.cashFlows)
+  pushSavingsPlan(snapshot.plan).catch(console.error)
+  for (const cf of snapshot.cashFlows) pushSavingsCashFlow(cf).catch(console.error)
 }
 
 export async function addSavingsCashFlow(data: Omit<SavingsCashFlow, 'id' | 'userId'>): Promise<string> {
@@ -58,4 +76,10 @@ export async function updateSavingsCashFlow(id: string, data: Partial<SavingsCas
 export async function deleteSavingsCashFlow(id: string) {
   await db.savingsCashFlows.delete(id)
   deleteCloudSavingsCashFlow(id).catch(console.error)
+}
+
+// Put a previously deleted cash flow back (undo)
+export async function restoreSavingsCashFlow(cf: SavingsCashFlow) {
+  await db.savingsCashFlows.put(cf)
+  pushSavingsCashFlow(cf).catch(console.error)
 }

@@ -46,3 +46,9 @@ export async function deleteTransaction(id: string) {
   await db.transactions.delete(id)
   deleteCloudTransaction(id).catch(console.error)
 }
+
+// Put a previously deleted transaction back (undo)
+export async function restoreTransaction(t: Transaction) {
+  await db.transactions.put(t)
+  pushTransaction(t).catch(console.error)
+}

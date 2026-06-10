@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus, Edit2, Trash2, ArrowLeftRight } from 'lucide-react'
-import { useAccounts, addAccount, updateAccount, deleteAccount, getAccountBalance, calcBalance } from '../hooks/useAccounts'
+import { useAccounts, addAccount, updateAccount, deleteAccount, restoreAccount, getAccountBalance, calcBalance } from '../hooks/useAccounts'
+import { useSnackbar } from '../stores/useSnackbar'
 import { useTransactions, addTransaction } from '../hooks/useTransactions'
 import { useTags } from '../hooks/useTags'
 import Card from '../components/ui/Card'
@@ -310,7 +311,11 @@ export default function Accounts() {
           <p className="text-xs text-red-400">⚠️ รายการ รายการต่อเนื่อง preset และรายการล่วงหน้าของบัญชีนี้จะถูกลบทั้งหมด</p>
           <div className="flex gap-3">
             <Button variant="secondary" fullWidth onClick={() => setDeleteConfirm(null)}>ยกเลิก</Button>
-            <Button variant="danger" fullWidth onClick={async () => { await deleteAccount(deleteConfirm!.id); setDeleteConfirm(null) }}>ลบ</Button>
+            <Button variant="danger" fullWidth onClick={async () => {
+              const snapshot = await deleteAccount(deleteConfirm!.id)
+              setDeleteConfirm(null)
+              if (snapshot) useSnackbar.getState().show(`ลบบัญชี "${snapshot.account.name}" แล้ว`, () => restoreAccount(snapshot))
+            }}>ลบ</Button>
           </div>
         </div>
       </Modal>

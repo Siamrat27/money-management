@@ -30,3 +30,9 @@ export async function deleteTag(id: string) {
   await db.tags.delete(id)
   deleteCloudTag(id).catch(console.error)
 }
+
+// Put a previously deleted tag back (undo)
+export async function restoreTag(t: Tag) {
+  await db.tags.put(t)
+  pushTag(t).catch(console.error)
+}

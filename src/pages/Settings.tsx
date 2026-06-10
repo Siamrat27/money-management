@@ -3,9 +3,10 @@ import { APP_VERSION } from '../version'
 import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List, LogOut, RefreshCw, Zap, Bell, PiggyBank, CalendarClock } from 'lucide-react'
 import IconDisplay from '../components/ui/IconDisplay'
 import { uploadIcon, isUrlIcon } from '../lib/storage'
-import { useTags, addTag, updateTag, deleteTag } from '../hooks/useTags'
+import { useTags, addTag, updateTag, deleteTag, restoreTag } from '../hooks/useTags'
+import { useSnackbar } from '../stores/useSnackbar'
 import { useAccounts } from '../hooks/useAccounts'
-import { usePresets, addPreset, updatePreset, deletePreset } from '../hooks/usePresets'
+import { usePresets, addPreset, updatePreset, deletePreset, restorePreset } from '../hooks/usePresets'
 import { useUserSettings, saveUserSettings } from '../hooks/useSettings'
 import { useAppStore } from '../stores/useAppStore'
 import { useAuthStore } from '../stores/useAuthStore'
@@ -512,7 +513,12 @@ export default function Settings() {
           <p className="text-xs text-gray-400">รายการที่ใช้หมวดหมู่นี้ไปแล้วจะไม่ถูกลบ</p>
           <div className="flex gap-3">
             <Button variant="secondary" fullWidth onClick={() => setDeleteTagConfirm(null)}>ยกเลิก</Button>
-            <Button variant="danger" fullWidth onClick={async () => { await deleteTag(deleteTagConfirm!.id); setDeleteTagConfirm(null) }}>ลบ</Button>
+            <Button variant="danger" fullWidth onClick={async () => {
+              const t = deleteTagConfirm!
+              await deleteTag(t.id)
+              setDeleteTagConfirm(null)
+              useSnackbar.getState().show(`ลบหมวดหมู่ "${t.name}" แล้ว`, () => restoreTag(t))
+            }}>ลบ</Button>
           </div>
         </div>
       </Modal>
@@ -522,7 +528,12 @@ export default function Settings() {
           <p className="text-sm text-gray-600 dark:text-gray-300">ลบรายการด่วน <span className="font-semibold">"{deletePresetConfirm?.name}"</span> ใช่หรือไม่?</p>
           <div className="flex gap-3">
             <Button variant="secondary" fullWidth onClick={() => setDeletePresetConfirm(null)}>ยกเลิก</Button>
-            <Button variant="danger" fullWidth onClick={async () => { await deletePreset(deletePresetConfirm!.id); setDeletePresetConfirm(null) }}>ลบ</Button>
+            <Button variant="danger" fullWidth onClick={async () => {
+              const p = deletePresetConfirm!
+              await deletePreset(p.id)
+              setDeletePresetConfirm(null)
+              useSnackbar.getState().show(`ลบรายการด่วน "${p.name}" แล้ว`, () => restorePreset(p))
+            }}>ลบ</Button>
           </div>
         </div>
       </Modal>

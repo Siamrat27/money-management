@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus, Trash2, Edit2, Play, Pause } from 'lucide-react'
-import { useRecurring, addRecurring, updateRecurring, deleteRecurring, confirmRecurring, skipRecurring } from '../hooks/useRecurring'
+import { useRecurring, addRecurring, updateRecurring, deleteRecurring, restoreRecurring, confirmRecurring, skipRecurring } from '../hooks/useRecurring'
+import { useSnackbar } from '../stores/useSnackbar'
 import { useAccounts } from '../hooks/useAccounts'
 import { useTags } from '../hooks/useTags'
 import Card from '../components/ui/Card'
@@ -200,7 +201,12 @@ export default function RecurringManager() {
           <p className="text-xs text-gray-400">รายการที่บันทึกไปแล้วจะไม่ถูกลบ</p>
           <div className="flex gap-3">
             <Button variant="secondary" fullWidth onClick={() => setDeleteConfirm(null)}>ยกเลิก</Button>
-            <Button variant="danger" fullWidth onClick={async () => { await deleteRecurring(deleteConfirm!.id); setDeleteConfirm(null) }}>ลบ</Button>
+            <Button variant="danger" fullWidth onClick={async () => {
+              const r = deleteConfirm!
+              await deleteRecurring(r.id)
+              setDeleteConfirm(null)
+              useSnackbar.getState().show(`ลบ "${r.name}" แล้ว`, () => restoreRecurring(r))
+            }}>ลบ</Button>
           </div>
         </div>
       </Modal>

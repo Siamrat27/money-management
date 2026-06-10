@@ -5,9 +5,10 @@ import { th } from 'date-fns/locale'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import {
   useSavingsPlans, useSavingsCashFlows,
-  addSavingsPlan, updateSavingsPlan, deleteSavingsPlan,
-  addSavingsCashFlow, updateSavingsCashFlow, deleteSavingsCashFlow,
+  addSavingsPlan, updateSavingsPlan, deleteSavingsPlan, restoreSavingsPlan,
+  addSavingsCashFlow, updateSavingsCashFlow, deleteSavingsCashFlow, restoreSavingsCashFlow,
 } from '../hooks/useSavingsPlans'
+import { useSnackbar } from '../stores/useSnackbar'
 import { useAppStore } from '../stores/useAppStore'
 import Header from '../components/layout/Header'
 import Card from '../components/ui/Card'
@@ -547,9 +548,10 @@ export default function SavingsPlanner() {
           <div className="flex gap-3">
             <Button variant="secondary" fullWidth onClick={() => setDeletePlanConfirm(null)}>ยกเลิก</Button>
             <Button variant="danger" fullWidth onClick={async () => {
-              await deleteSavingsPlan(deletePlanConfirm!.id)
+              const snapshot = await deleteSavingsPlan(deletePlanConfirm!.id)
               setDeletePlanConfirm(null)
               setSelectedPlanId(null)
+              if (snapshot) useSnackbar.getState().show(`ลบแผน "${snapshot.plan.name}" แล้ว`, () => restoreSavingsPlan(snapshot))
             }}>ลบ</Button>
           </div>
         </div>
@@ -564,8 +566,10 @@ export default function SavingsPlanner() {
           <div className="flex gap-3">
             <Button variant="secondary" fullWidth onClick={() => setDeleteCfConfirm(null)}>ยกเลิก</Button>
             <Button variant="danger" fullWidth onClick={async () => {
-              await deleteSavingsCashFlow(deleteCfConfirm!.id)
+              const cf = deleteCfConfirm!
+              await deleteSavingsCashFlow(cf.id)
               setDeleteCfConfirm(null)
+              useSnackbar.getState().show(`ลบ "${cf.name}" แล้ว`, () => restoreSavingsCashFlow(cf))
             }}>ลบ</Button>
           </div>
         </div>

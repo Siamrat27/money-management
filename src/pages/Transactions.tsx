@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Search, Filter, Trash2, Edit2 } from 'lucide-react'
-import { useTransactions, deleteTransaction } from '../hooks/useTransactions'
+import { useTransactions, deleteTransaction, restoreTransaction } from '../hooks/useTransactions'
+import { useSnackbar } from '../stores/useSnackbar'
 import { useAccounts } from '../hooks/useAccounts'
 import { useTags } from '../hooks/useTags'
 import { useAppStore } from '../stores/useAppStore'
@@ -185,7 +186,12 @@ export default function Transactions() {
           </p>
           <div className="flex gap-3">
             <Button variant="secondary" fullWidth onClick={() => setDeleteConfirm(null)}>ยกเลิก</Button>
-            <Button variant="danger" fullWidth onClick={async () => { await deleteTransaction(deleteConfirm!.id); setDeleteConfirm(null) }}>ลบ</Button>
+            <Button variant="danger" fullWidth onClick={async () => {
+              const t = deleteConfirm!
+              await deleteTransaction(t.id)
+              setDeleteConfirm(null)
+              useSnackbar.getState().show('ลบรายการแล้ว', () => restoreTransaction(t))
+            }}>ลบ</Button>
           </div>
         </div>
       </Modal>
