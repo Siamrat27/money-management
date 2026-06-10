@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { APP_VERSION } from '../version'
-import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List, LogOut, RefreshCw, Zap, Bell, PiggyBank, CalendarClock, Target } from 'lucide-react'
+import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List, LogOut, RefreshCw, Zap, Bell, PiggyBank, CalendarClock, Target, Lock } from 'lucide-react'
+import { hasPin, setPin, clearPin, verifyPin } from '../lib/pin'
 import IconDisplay from '../components/ui/IconDisplay'
 import { uploadIcon, isUrlIcon } from '../lib/storage'
 import { useTags, addTag, updateTag, deleteTag, restoreTag } from '../hooks/useTags'
@@ -182,6 +183,37 @@ export default function Settings() {
   }
 
   const [clearConfirm, setClearConfirm] = useState(false)
+
+  // PIN lock
+  const [pinEnabled, setPinEnabled] = useState(hasPin())
+  const [pinModal, setPinModal] = useState<'set' | 'remove' | null>(null)
+  const [pinCurrent, setPinCurrent] = useState('')
+  const [pinNew, setPinNew] = useState('')
+  const [pinConfirmInput, setPinConfirmInput] = useState('')
+  const [pinError, setPinError] = useState('')
+
+  function openPinModal(mode: 'set' | 'remove') {
+    setPinCurrent(''); setPinNew(''); setPinConfirmInput(''); setPinError('')
+    setPinModal(mode)
+  }
+
+  async function handlePinSave() {
+    setPinError('')
+    if (pinEnabled) {
+      if (!(await verifyPin(pinCurrent))) { setPinError('PIN ปัจจุบันไม่ถูกต้อง'); return }
+    }
+    if (pinModal === 'remove') {
+      clearPin()
+      setPinEnabled(false)
+      setPinModal(null)
+      return
+    }
+    if (!/^\d{4,6}$/.test(pinNew)) { setPinError('PIN ต้องเป็นตัวเลข 4-6 หลัก'); return }
+    if (pinNew !== pinConfirmInput) { setPinError('PIN ใหม่ไม่ตรงกัน'); return }
+    await setPin(pinNew)
+    setPinEnabled(true)
+    setPinModal(null)
+  }
 
   async function handleClear() {
     const userId = user?.id ?? 'local'
@@ -395,6 +427,28 @@ export default function Settings() {
           </div>
         </Card>
 
+        {/* Security */}
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Lock size={18} className="text-indigo-500" />
+            <p className="font-semibold">ความปลอดภัย</p>
+          </div>
+          <p className="text-xs text-gray-400">
+            ตั้ง PIN เพื่อล็อคแอปบนเครื่องนี้ — จะถามตอนเปิดแอป และเมื่อพับแอปไว้เกิน 5 นาที
+          </p>
+          {pinEnabled ? (
+            <div className="flex gap-2">
+              <Button variant="secondary" fullWidth onClick={() => openPinModal('set')}>เปลี่ยน PIN</Button>
+              <Button variant="ghost" fullWidth onClick={() => openPinModal('remove')}>ปิดใช้งาน</Button>
+            </div>
+          ) : (
+            <Button variant="secondary" fullWidth onClick={() => openPinModal('set')}>
+              <Lock size={15} className="inline mr-2" />
+              ตั้ง PIN ล็อคแอป
+            </Button>
+          )}
+        </Card>
+
         {/* Danger Zone */}
         <Card className="p-4 space-y-3 border border-red-100 dark:border-red-900">
           <div className="flex items-center gap-2 text-red-500">
@@ -561,6 +615,53 @@ export default function Settings() {
               setDeletePresetConfirm(null)
               useSnackbar.getState().show(`ลบรายการด่วน "${p.name}" แล้ว`, () => restorePreset(p))
             }}>ลบ</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── PIN MODAL ── */}
+      <Modal open={!!pinModal} onClose={() => setPinModal(null)}
+        title={pinModal === 'remove' ? 'ปิดใช้งาน PIN' : pinEnabled ? 'เปลี่ยน PIN' : 'ตั้ง PIN'}>
+        <div className="space-y-4">
+          {pinEnabled && (
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">PIN ปัจจุบัน</label>
+              <input
+                type="password" inputMode="numeric" maxLength={6} value={pinCurrent}
+                onChange={(e) => setPinCurrent(e.target.value.replace(/\D/g, ''))}
+                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none tracking-widest"
+              />
+            </div>
+          )}
+          {pinModal === 'set' && (
+            <>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">PIN ใหม่ (ตัวเลข 4-6 หลัก)</label>
+                <input
+                  type="password" inputMode="numeric" maxLength={6} value={pinNew}
+                  onChange={(e) => setPinNew(e.target.value.replace(/\D/g, ''))}
+                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none tracking-widest"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">ยืนยัน PIN ใหม่</label>
+                <input
+                  type="password" inputMode="numeric" maxLength={6} value={pinConfirmInput}
+                  onChange={(e) => setPinConfirmInput(e.target.value.replace(/\D/g, ''))}
+                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none tracking-widest"
+                />
+              </div>
+            </>
+          )}
+          {pinModal === 'remove' && (
+            <p className="text-sm text-gray-600 dark:text-gray-300">ยืนยันการปิดใช้งาน PIN ล็อคแอป?</p>
+          )}
+          {pinError && <p className="text-xs text-red-500">⚠️ {pinError}</p>}
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={() => setPinModal(null)}>ยกเลิก</Button>
+            <Button fullWidth variant={pinModal === 'remove' ? 'danger' : undefined} onClick={handlePinSave}>
+              {pinModal === 'remove' ? 'ปิดใช้งาน' : 'บันทึก'}
+            </Button>
           </div>
         </div>
       </Modal>

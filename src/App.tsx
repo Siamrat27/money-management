@@ -1,5 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { hasPin } from './lib/pin'
+import PinLock from './components/PinLock'
 import { useAppStore } from './stores/useAppStore'
 import { useAuthStore } from './stores/useAuthStore'
 import { pullFromCloud } from './services/sync'
@@ -19,10 +21,28 @@ import ScheduledPayments from './pages/ScheduledPayments'
 import Budgets from './pages/Budgets'
 import Login from './pages/Login'
 
+const LOCK_AFTER_HIDDEN_MS = 5 * 60 * 1000
+
 export default function App() {
   const { page, subPage } = useAppStore()
   const { user, loading, setSyncing, setSyncError } = useAuthStore()
   const lastSyncedUser = useRef<string | null>(null)
+
+  // PIN lock: locked on cold start if a PIN is set; re-locks after the app
+  // has been hidden (background/another tab) for 5+ minutes
+  const [locked, setLocked] = useState(() => hasPin())
+  const hiddenAt = useRef<number | null>(null)
+  useEffect(() => {
+    function onVisibility() {
+      if (document.hidden) {
+        hiddenAt.current = Date.now()
+      } else if (hiddenAt.current && hasPin() && Date.now() - hiddenAt.current >= LOCK_AFTER_HIDDEN_MS) {
+        setLocked(true)
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [])
 
   // Pull cloud data whenever the logged-in user changes
   useEffect(() => {
@@ -35,6 +55,10 @@ export default function App() {
       .catch((e) => setSyncError(String(e)))
       .finally(() => setSyncing(false))
   }, [user?.id])
+
+  if (locked) {
+    return <PinLock onUnlock={() => setLocked(false)} />
+  }
 
   if (loading) {
     return (
