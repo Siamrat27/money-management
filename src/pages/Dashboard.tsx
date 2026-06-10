@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ArrowUpCircle, ArrowDownCircle, Wallet, ChevronRight, RefreshCw, X } from 'lucide-react'
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -205,6 +205,26 @@ export default function Dashboard() {
     return () => clearTimeout(t)
   }, [autoResult])
 
+  // Pull-to-refresh: drag down from the very top of the page
+  const PULL_TRIGGER_PX = 60
+  const pullStartY = useRef<number | null>(null)
+  const [pullDist, setPullDist] = useState(0)
+
+  function onTouchStart(e: React.TouchEvent) {
+    if (window.scrollY <= 0 && !refreshing) pullStartY.current = e.touches[0].clientY
+  }
+  function onTouchMove(e: React.TouchEvent) {
+    if (pullStartY.current === null) return
+    const d = e.touches[0].clientY - pullStartY.current
+    if (d > 0 && window.scrollY <= 0) setPullDist(Math.min(d * 0.4, 90))
+    else setPullDist(0)
+  }
+  function onTouchEnd() {
+    if (pullDist >= PULL_TRIGGER_PX) handleRefresh()
+    pullStartY.current = null
+    setPullDist(0)
+  }
+
   async function handleRefresh() {
     setRefreshing(true)
     try {
@@ -232,7 +252,25 @@ export default function Dashboard() {
   function getAccount(id?: string) { return accounts.find((a) => a.id === id) }
 
   return (
-    <div className="min-h-screen pb-nav">
+    <div
+      className="min-h-screen pb-nav"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      {/* Pull-to-refresh indicator */}
+      {(pullDist > 0 || refreshing) && (
+        <div
+          className="flex justify-center overflow-hidden transition-[height]"
+          style={{ height: refreshing ? 44 : pullDist }}
+        >
+          <RefreshCw
+            size={22}
+            className={`mt-2.5 text-indigo-500 ${refreshing ? 'animate-spin' : ''}`}
+            style={!refreshing ? { transform: `rotate(${pullDist * 3}deg)`, opacity: Math.min(1, pullDist / PULL_TRIGGER_PX) } : undefined}
+          />
+        </div>
+      )}
       <Header
         title="PocketFlow 💰"
         right={
