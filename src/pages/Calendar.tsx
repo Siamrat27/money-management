@@ -208,22 +208,27 @@ export default function Calendar() {
                 {selectedTxns.map((t, i) => {
                   const tag = getTag(t.tagId)
                   const account = getAccount(t.accountId)
+                  const toAccount = getAccount(t.toAccountId)
                   const isIncome = t.type === 'income'
+                  const isTransfer = t.type === 'transfer'
                   return (
                     <div key={t.id} className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-gray-50 dark:border-gray-800' : ''}`}>
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-                        style={{ backgroundColor: (tag?.color ?? '#6366f1') + '22' }}>
-                        {tag?.icon ?? '💸'}
+                        style={{ backgroundColor: isTransfer ? '#3b82f622' : (tag?.color ?? '#6366f1') + '22' }}>
+                        {isTransfer ? '↔️' : tag?.icon ?? '💸'}
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1">
-                          <p className="text-sm font-medium truncate">{t.note || tag?.name || '-'}</p>
+                          <p className="text-sm font-medium truncate">{t.note || tag?.name || (isTransfer ? 'โอนเงิน' : '-')}</p>
+                          {isTransfer && <span className="flex-shrink-0 text-[9px] leading-none bg-blue-100 dark:bg-blue-950 text-blue-500 rounded-full px-1.5 py-0.5 font-semibold">โอน</span>}
                           {t.isRecurring && <span className="flex-shrink-0 text-[9px] leading-none bg-indigo-100 dark:bg-indigo-950 text-indigo-500 rounded-full px-1.5 py-0.5">🔄</span>}
                         </div>
-                        <p className="text-xs text-gray-400">{account?.name}</p>
+                        <p className="text-xs text-gray-400 truncate">
+                          {isTransfer ? `${account?.name ?? '?'} → ${toAccount?.name ?? '?'}` : account?.name}
+                        </p>
                       </div>
-                      <p className={`text-sm font-bold ${isIncome ? 'text-green-500' : 'text-red-500'}`}>
-                        {isIncome ? '+' : '-'}฿{formatAmount(t.amount)}
+                      <p className={`text-sm font-bold ${isIncome ? 'text-green-500' : isTransfer ? 'text-blue-500' : 'text-red-500'}`}>
+                        {isIncome ? '+' : isTransfer ? '' : '-'}฿{formatAmount(t.amount)}
                       </p>
                     </div>
                   )

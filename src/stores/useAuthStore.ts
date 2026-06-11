@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { invalidatePullCache } from '../services/sync'
 import { db } from '../db/db'
 
 interface AuthStore {
@@ -83,6 +84,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     const userId = useAuthStore.getState().user?.id
     if (isSupabaseConfigured) await supabase.auth.signOut()
     if (userId) {
+      invalidatePullCache(userId)
       await db.transaction('rw', [db.accounts, db.tags, db.transactions, db.recurring, db.userSettings, db.presets, db.savingsPlans, db.savingsCashFlows, db.scheduledPayments], async () => {
         await db.accounts.where('userId').equals(userId).delete()
         await db.tags.where('userId').equals(userId).delete()

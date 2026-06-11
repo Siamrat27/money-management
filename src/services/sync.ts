@@ -18,13 +18,31 @@ import type { Account, Tag, Transaction, Recurring, Preset, UserSettings, Saving
 // so a stale snapshot can't overwrite fresher local writes.
 let inflightPull: { userId: string; promise: Promise<void> } | null = null
 
+// Users already pulled this session. Re-pulling on every Dashboard mount is
+// dangerous: right after adding a transaction (cloud push still in-flight),
+// a pull would fetch a stale snapshot and wipe the new record locally.
+const pulledThisSession = new Set<string>()
+
 export function pullFromCloud(userId: string): Promise<void> {
   if (inflightPull?.userId === userId) return inflightPull.promise
-  const promise = doPullFromCloud(userId).finally(() => {
-    if (inflightPull?.promise === promise) inflightPull = null
-  })
+  const promise = doPullFromCloud(userId)
+    .then(() => { pulledThisSession.add(userId) })
+    .finally(() => {
+      if (inflightPull?.promise === promise) inflightPull = null
+    })
   inflightPull = { userId, promise }
   return promise
+}
+
+// Pull only if this user hasn't been pulled yet this session (login/cold start).
+export function pullFromCloudOnce(userId: string): Promise<void> {
+  if (pulledThisSession.has(userId)) return Promise.resolve()
+  return pullFromCloud(userId)
+}
+
+// Forget the session pull state (call on sign-out so re-login re-pulls)
+export function invalidatePullCache(userId: string) {
+  pulledThisSession.delete(userId)
 }
 
 async function doPullFromCloud(userId: string): Promise<void> {

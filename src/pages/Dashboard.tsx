@@ -10,7 +10,7 @@ import { useTransactions } from '../hooks/useTransactions'
 import { useTags } from '../hooks/useTags'
 import { runAutoProcess } from '../services/autoProcess'
 import type { AutoProcessResult } from '../services/autoProcess'
-import { pullFromCloud } from '../services/sync'
+import { pullFromCloud, pullFromCloudOnce } from '../services/sync'
 import { isSupabaseConfigured } from '../lib/supabase'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
@@ -186,11 +186,13 @@ export default function Dashboard() {
   const [autoResult, setAutoResult] = useState<AutoProcessResult | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
-  // On login/mount: pull cloud first so Dexie is populated, then auto-process
+  // On login/cold start: pull cloud once so Dexie is populated, then auto-process.
+  // Subsequent Dashboard mounts skip the pull — re-pulling right after adding a
+  // transaction (push still in-flight) would wipe the new record with stale data.
   useEffect(() => {
     async function init() {
       if (user && isSupabaseConfigured) {
-        await pullFromCloud(user.id).catch(console.error)
+        await pullFromCloudOnce(user.id).catch(console.error)
       }
       const result = await runAutoProcess(userId)
       if (result.scheduledCount + result.recurringCount > 0) setAutoResult(result)
