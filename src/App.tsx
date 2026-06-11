@@ -20,12 +20,13 @@ import SavingsPlanner from './pages/SavingsPlanner'
 import ScheduledPayments from './pages/ScheduledPayments'
 import Budgets from './pages/Budgets'
 import Login from './pages/Login'
+import ResetPassword from './pages/ResetPassword'
 
 const LOCK_AFTER_HIDDEN_MS = 5 * 60 * 1000
 
 export default function App() {
   const { page, subPage } = useAppStore()
-  const { user, loading, setSyncing, setSyncError } = useAuthStore()
+  const { user, loading, setSyncing, setSyncError, recoveryMode } = useAuthStore()
   const lastSyncedUser = useRef<string | null>(null)
 
   // PIN lock: locked on cold start if a PIN is set; re-locks after the app
@@ -66,6 +67,11 @@ export default function App() {
         <Loader2 size={32} className="animate-spin text-indigo-500" />
       </div>
     )
+  }
+
+  // Arrived via password-reset email link — force the new-password screen
+  if (recoveryMode && user) {
+    return <ResetPassword />
   }
 
   // Show login only when Supabase is configured and no session

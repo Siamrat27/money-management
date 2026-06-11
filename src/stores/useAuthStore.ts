@@ -10,12 +10,16 @@ interface AuthStore {
   loading: boolean
   syncing: boolean
   syncError: string | null
+  recoveryMode: boolean // true after user arrives via password-reset email link
   setUser: (user: User | null) => void
   setSession: (session: Session | null) => void
   setSyncing: (v: boolean) => void
   setSyncError: (e: string | null) => void
+  setRecoveryMode: (v: boolean) => void
   signIn: (email: string, password: string) => Promise<string | null>
   signUp: (email: string, password: string) => Promise<string | null>
+  resetPassword: (email: string) => Promise<string | null>
+  updatePassword: (newPassword: string) => Promise<string | null>
   signOut: () => Promise<void>
 }
 
@@ -25,10 +29,12 @@ export const useAuthStore = create<AuthStore>((set) => ({
   loading: true,
   syncing: false,
   syncError: null,
+  recoveryMode: false,
   setUser: (user) => set({ user }),
   setSession: (session) => set({ session, user: session?.user ?? null }),
   setSyncing: (syncing) => set({ syncing }),
   setSyncError: (syncError) => set({ syncError }),
+  setRecoveryMode: (recoveryMode) => set({ recoveryMode }),
 
   signIn: async (email, password) => {
     if (!isSupabaseConfigured) return 'Supabase ยังไม่ได้ตั้งค่า'
@@ -80,6 +86,24 @@ export const useAuthStore = create<AuthStore>((set) => ({
     return error?.message ?? null
   },
 
+  resetPassword: async (email) => {
+    if (!isSupabaseConfigured) return 'Supabase ยังไม่ได้ตั้งค่า'
+    const trimmed = email.trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmed)) return 'รูปแบบอีเมลไม่ถูกต้อง'
+    const { error } = await supabase.auth.resetPasswordForEmail(trimmed, {
+      redirectTo: window.location.origin,
+    })
+    return error?.message ?? null
+  },
+
+  updatePassword: async (newPassword) => {
+    if (!isSupabaseConfigured) return 'Supabase ยังไม่ได้ตั้งค่า'
+    if (newPassword.length < 6) return 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    if (!error) set({ recoveryMode: false })
+    return error?.message ?? null
+  },
+
   signOut: async () => {
     const userId = useAuthStore.getState().user?.id
     if (isSupabaseConfigured) await supabase.auth.signOut()
@@ -107,8 +131,12 @@ if (isSupabaseConfigured) {
     useAuthStore.setState({ session: data.session, user: data.session?.user ?? null, loading: false })
   })
 
-  supabase.auth.onAuthStateChange((_event, session) => {
+  supabase.auth.onAuthStateChange((event, session) => {
     useAuthStore.setState({ session, user: session?.user ?? null, loading: false })
+    // User arrived via the password-reset email link — force the reset screen
+    if (event === 'PASSWORD_RECOVERY') {
+      useAuthStore.setState({ recoveryMode: true })
+    }
   })
 } else {
   useAuthStore.setState({ loading: false })
