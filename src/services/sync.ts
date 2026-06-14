@@ -295,6 +295,7 @@ function tagToRow(t: Tag) {
   return {
     id: t.id, user_id: t.userId, name: t.name, color: t.color, icon: t.icon, type: t.type,
     monthly_budget: t.monthlyBudget ?? null,
+    daily_budget: t.dailyBudget ?? null,
   }
 }
 
@@ -303,6 +304,7 @@ function rowToTag(r: Record<string, unknown>): Tag {
     id: r.id as string, userId: r.user_id as string, name: r.name as string,
     color: r.color as string, icon: r.icon as string, type: r.type as Tag['type'],
     monthlyBudget: (r.monthly_budget as number | null) ?? undefined,
+    dailyBudget: (r.daily_budget as number | null) ?? undefined,
   }
 }
 
@@ -336,6 +338,9 @@ function settingsToRow(s: UserSettings) {
     weekly_summary: s.weeklySummary ?? false,
     last_daily_summary: s.lastDailySummary ?? null,
     last_weekly_summary: s.lastWeeklySummary ?? null,
+    daily_allowance: s.dailyAllowance ?? null,
+    allowance_rollover: s.allowanceRollover ?? false,
+    allowance_reset_weekday: s.allowanceResetWeekday ?? null,
   }
 }
 
@@ -347,6 +352,9 @@ function rowToSettings(r: Record<string, unknown>): UserSettings {
     weeklySummary: (r.weekly_summary as boolean | null) ?? undefined,
     lastDailySummary: (r.last_daily_summary as string | null) ?? undefined,
     lastWeeklySummary: (r.last_weekly_summary as string | null) ?? undefined,
+    dailyAllowance: (r.daily_allowance as number | null) ?? undefined,
+    allowanceRollover: (r.allowance_rollover as boolean | null) ?? undefined,
+    allowanceResetWeekday: (r.allowance_reset_weekday as number | null) ?? undefined,
   }
 }
 

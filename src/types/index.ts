@@ -22,6 +22,7 @@ export interface Tag {
   icon: string
   type: TagType
   monthlyBudget?: number
+  dailyBudget?: number // daily spending allowance for this category
 }
 
 export interface Preset {
@@ -73,6 +74,9 @@ export interface UserSettings {
   weeklySummary?: boolean      // send last week's summary on first open of a new week
   lastDailySummary?: string    // yyyy-MM-dd key of the last day summary sent
   lastWeeklySummary?: string   // yyyy-MM-dd key (week start) of the last week summary sent
+  dailyAllowance?: number      // overall daily spending allowance (total)
+  allowanceRollover?: boolean  // unused allowance carries forward within the period
+  allowanceResetWeekday?: number // 0=Sun..6=Sat — day the rollover period restarts
 }
 
 export interface SavingsPlan {

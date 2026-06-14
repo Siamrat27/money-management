@@ -21,7 +21,8 @@ create table public.tags (
   color          text not null default '#6366f1',
   icon           text not null default '🏷️',
   type           text not null check (type in ('income','expense','both')),
-  monthly_budget numeric default null
+  monthly_budget numeric default null,
+  daily_budget   numeric default null
 );
 
 -- ── transactions ─────────────────────────────────────────────────────────────
@@ -58,12 +59,15 @@ create table public.recurring (
 
 -- ── user_settings ────────────────────────────────────────────────────────────
 create table public.user_settings (
-  user_id              uuid primary key references auth.users(id) on delete cascade,
-  discord_webhook      text default null,
-  daily_summary        boolean not null default false,
-  weekly_summary       boolean not null default false,
-  last_daily_summary   text default null,
-  last_weekly_summary  text default null
+  user_id                 uuid primary key references auth.users(id) on delete cascade,
+  discord_webhook         text default null,
+  daily_summary           boolean not null default false,
+  weekly_summary          boolean not null default false,
+  last_daily_summary      text default null,
+  last_weekly_summary     text default null,
+  daily_allowance         numeric default null,
+  allowance_rollover      boolean not null default false,
+  allowance_reset_weekday int default null
 );
 
 -- ── Row Level Security ───────────────────────────────────────────────────────

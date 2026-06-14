@@ -8,6 +8,8 @@ import { useAppStore } from '../stores/useAppStore'
 import { useAccounts, calcBalance } from '../hooks/useAccounts'
 import { useTransactions } from '../hooks/useTransactions'
 import { useTags } from '../hooks/useTags'
+import { useUserSettings } from '../hooks/useSettings'
+import { computeAllowance, periodStart, WEEKDAY_LABELS } from '../utils/allowance'
 import { runAutoProcess } from '../services/autoProcess'
 import type { AutoProcessResult } from '../services/autoProcess'
 import { pullFromCloud, pullFromCloudOnce } from '../services/sync'
@@ -182,7 +184,21 @@ export default function Dashboard() {
   const activeAccounts = accounts.filter((a) => !a.archived) // totals & chips
   const allTxns = useTransactions()
   const tags = useTags()
+  const userSettings = useUserSettings()
   const recent = allTxns.slice(0, 5)
+
+  // Daily spending allowance (overall + per-category), with optional rollover
+  const allowanceRollover = userSettings?.allowanceRollover ?? false
+  const allowanceResetWeekday = userSettings?.allowanceResetWeekday ?? 1
+  const allowanceStart = allowanceRollover ? periodStart(allowanceResetWeekday) : startOfDay(new Date())
+  const periodExpenses = allTxns.filter((t) => t.type === 'expense' && startOfDay(t.date) >= allowanceStart)
+  const overallAllowance = (userSettings?.dailyAllowance ?? 0) > 0
+    ? computeAllowance(userSettings!.dailyAllowance!, allowanceRollover, allowanceResetWeekday, periodExpenses)
+    : null
+  const categoryAllowances = tags
+    .filter((t) => (t.dailyBudget ?? 0) > 0)
+    .map((tag) => ({ tag, res: computeAllowance(tag.dailyBudget!, allowanceRollover, allowanceResetWeekday, periodExpenses, (t) => t.tagId === tag.id) }))
+  const hasAllowance = !!overallAllowance || categoryAllowances.length > 0
 
   const [autoResult, setAutoResult] = useState<AutoProcessResult | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -359,6 +375,45 @@ export default function Dashboard() {
             <p className="text-xl font-bold text-red-500">฿{formatAmount(summary.expense)}</p>
           </Card>
         </div>
+
+        {/* Daily allowance — เหลือใช้วันนี้ */}
+        {hasAllowance && (
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">เหลือใช้วันนี้</p>
+              {allowanceRollover && (
+                <span className="text-[10px] text-indigo-400">ทบยอด · เริ่มใหม่ทุกวัน{WEEKDAY_LABELS[allowanceResetWeekday]}</span>
+              )}
+            </div>
+            {overallAllowance && (
+              <div className="mb-2">
+                <p className={`text-3xl font-bold ${overallAllowance.remaining >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  ฿{formatAmount(overallAllowance.remaining)}
+                </p>
+                <p className="text-xs text-gray-400">
+                  วันละ ฿{formatAmount(overallAllowance.perDay)}
+                  {allowanceRollover ? ` · สะสม ${overallAllowance.daysElapsed} วัน` : ''}
+                  {' · วันนี้ใช้ '}฿{formatAmount(overallAllowance.spentToday)}
+                </p>
+              </div>
+            )}
+            {categoryAllowances.length > 0 && (
+              <div className={`space-y-1.5 ${overallAllowance ? 'pt-2 border-t border-gray-100 dark:border-gray-800' : ''}`}>
+                {categoryAllowances.map(({ tag, res }) => (
+                  <div key={tag.id} className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center overflow-hidden text-sm flex-shrink-0" style={{ backgroundColor: tag.color + '22' }}>
+                      <IconDisplay icon={tag.icon} />
+                    </div>
+                    <span className="text-sm flex-1 truncate">{tag.name}</span>
+                    <span className={`text-sm font-semibold ${res.remaining >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      ฿{formatAmount(res.remaining)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
 
         {/* Savings Card */}
         <Card className="p-4">

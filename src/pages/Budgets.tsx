@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Target } from 'lucide-react'
+import { Target, Wallet } from 'lucide-react'
 import { db, LOCAL_USER_ID } from '../db/db'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useTags, updateTag } from '../hooks/useTags'
+import { useUserSettings, saveUserSettings } from '../hooks/useSettings'
 import Header from '../components/layout/Header'
 import Card from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
@@ -11,6 +12,7 @@ import Button from '../components/ui/Button'
 import IconDisplay from '../components/ui/IconDisplay'
 import { formatAmount } from '../utils/formatters'
 import { getMonthRange } from '../utils/dateHelpers'
+import { WEEKDAY_LABELS } from '../utils/allowance'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import type { Tag } from '../types'
@@ -29,6 +31,16 @@ export default function Budgets() {
 
   const [budgetModal, setBudgetModal] = useState<Tag | null>(null)
   const [budgetInput, setBudgetInput] = useState('')
+  const [dailyInput, setDailyInput] = useState('')
+
+  // Overall daily allowance config
+  const settings = useUserSettings()
+  const [allowanceInput, setAllowanceInput] = useState('')
+  useEffect(() => {
+    setAllowanceInput(settings?.dailyAllowance ? String(settings.dailyAllowance) : '')
+  }, [settings?.dailyAllowance])
+  const rollover = settings?.allowanceRollover ?? false
+  const resetWeekday = settings?.allowanceResetWeekday ?? 1
 
   const monthExpenses = useLiveQuery(
     () => db.transactions
@@ -60,14 +72,24 @@ export default function Budgets() {
 
   function openSetBudget(tag: Tag) {
     setBudgetInput(tag.monthlyBudget ? String(tag.monthlyBudget) : '')
+    setDailyInput(tag.dailyBudget ? String(tag.dailyBudget) : '')
     setBudgetModal(tag)
   }
 
   async function saveBudget() {
     if (!budgetModal) return
-    const val = parseFloat(budgetInput)
-    await updateTag(budgetModal.id, { monthlyBudget: val > 0 ? val : undefined })
+    const monthly = parseFloat(budgetInput)
+    const daily = parseFloat(dailyInput)
+    await updateTag(budgetModal.id, {
+      monthlyBudget: monthly > 0 ? monthly : undefined,
+      dailyBudget: daily > 0 ? daily : undefined,
+    })
     setBudgetModal(null)
+  }
+
+  function saveAllowanceAmount() {
+    const val = parseFloat(allowanceInput)
+    saveUserSettings({ dailyAllowance: val > 0 ? val : undefined })
   }
 
   return (
@@ -76,6 +98,55 @@ export default function Budgets() {
 
       <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
         <p className="text-xs text-gray-400 text-center">{format(now, 'MMMM yyyy', { locale: th })}</p>
+
+        {/* Daily allowance config */}
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Wallet size={18} className="text-indigo-500" />
+            <p className="font-semibold text-sm">เงินใช้จ่ายต่อวัน</p>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">จำนวนต่อวัน (รวมทุกหมวด)</label>
+            <div className="relative">
+              <span className="absolute left-3 top-2.5 text-sm text-gray-400">฿</span>
+              <input
+                type="number" inputMode="decimal" value={allowanceInput}
+                onChange={(e) => setAllowanceInput(e.target.value)}
+                onBlur={saveAllowanceAmount}
+                placeholder="0 = ปิด"
+                className="w-full pl-7 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none"
+              />
+            </div>
+          </div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <button
+              onClick={() => saveUserSettings({ allowanceRollover: !rollover })}
+              className={`w-11 h-6 rounded-full transition-colors flex items-center flex-shrink-0 ${rollover ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+            >
+              <span className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${rollover ? 'translate-x-5' : ''}`} />
+            </button>
+            <div className="flex-1">
+              <p className="text-sm font-medium">ทบยอดที่เหลือ</p>
+              <p className="text-xs text-gray-400">เหลือจากวันก่อนสะสมไปวันถัดไป</p>
+            </div>
+          </label>
+          {rollover && (
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">เริ่มนับใหม่ทุกวัน</label>
+              <div className="flex gap-1.5 flex-wrap">
+                {WEEKDAY_LABELS.map((d, i) => (
+                  <button
+                    key={i}
+                    onClick={() => saveUserSettings({ allowanceResetWeekday: i })}
+                    className={`w-9 h-9 rounded-xl text-sm border-2 ${resetWeekday === i ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'}`}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
 
         {budgeted.length > 0 && (
           <Card className="p-5 bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
@@ -184,6 +255,20 @@ export default function Budgets() {
               />
             </div>
             <p className="text-xs text-gray-400 mt-1.5">ใส่ 0 หรือเว้นว่างเพื่อยกเลิกงบของหมวดนี้</p>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">เงินใช้จ่ายต่อวันของหมวดนี้ (฿)</label>
+            <div className="relative">
+              <span className="absolute left-3 top-2.5 text-sm text-gray-400">฿</span>
+              <input
+                type="number"
+                value={dailyInput}
+                onChange={(e) => setDailyInput(e.target.value)}
+                placeholder="0 = ไม่กำหนด"
+                className="w-full pl-7 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none"
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-1.5">แสดงยอดเหลือรายวันของหมวดนี้บนหน้าหลัก</p>
           </div>
           <div className="flex gap-3">
             <Button variant="secondary" onClick={() => setBudgetModal(null)}>ยกเลิก</Button>
