@@ -2,13 +2,13 @@ import { db } from '../db/db'
 import { deleteAllCloudData, pushAllUserData } from '../services/sync'
 import type {
   Account, Tag, Transaction, Recurring, Preset,
-  SavingsPlan, SavingsCashFlow, ScheduledPayment,
+  SavingsPlan, SavingsCashFlow, ScheduledPayment, UserSettings,
 } from '../types'
 
 // ─── EXPORT ───────────────────────────────────────────────────────────────────
 
 export async function exportData(): Promise<void> {
-  const [accounts, tags, transactions, recurring, presets, savingsPlans, savingsCashFlows, scheduledPayments] =
+  const [accounts, tags, transactions, recurring, presets, savingsPlans, savingsCashFlows, scheduledPayments, userSettings] =
     await Promise.all([
       db.accounts.toArray(),
       db.tags.toArray(),
@@ -18,13 +18,14 @@ export async function exportData(): Promise<void> {
       db.savingsPlans.toArray(),
       db.savingsCashFlows.toArray(),
       db.scheduledPayments.toArray(),
+      db.userSettings.toArray(),
     ])
 
   const payload = {
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     accounts, tags, transactions, recurring, presets,
-    savingsPlans, savingsCashFlows, scheduledPayments,
+    savingsPlans, savingsCashFlows, scheduledPayments, userSettings,
   }
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -46,6 +47,7 @@ export interface ImportPreview {
   savingsPlans: number
   savingsCashFlows: number
   scheduledPayments: number
+  userSettings: number
 }
 
 export interface ImportPayload {
@@ -72,6 +74,7 @@ export async function parseImportFile(file: File): Promise<ImportPayload> {
       savingsPlans: count('savingsPlans'),
       savingsCashFlows: count('savingsCashFlows'),
       scheduledPayments: count('scheduledPayments'),
+      userSettings: count('userSettings'),
     },
   }
 }
@@ -108,11 +111,19 @@ export async function importData(
   const scheduledPayments = coerce(g('scheduledPayments'), userId, (r) => ({
     dueDate: new Date(r.dueDate as string),
     executedAt: r.executedAt ? new Date(r.executedAt as string) : undefined,
+    remindedAt: r.remindedAt ? new Date(r.remindedAt as string) : undefined,
   })) as unknown as ScheduledPayment[]
+
+  // userSettings is keyed by userId (one row per user), not id. Collapse any
+  // exported settings to the current user.
+  const settingsRows = g('userSettings')
+  const importedSettings = settingsRows.length
+    ? ({ ...(settingsRows[0] as R), userId } as unknown as UserSettings)
+    : null
 
   const allTables = [
     db.accounts, db.tags, db.transactions, db.recurring, db.presets,
-    db.savingsPlans, db.savingsCashFlows, db.scheduledPayments,
+    db.savingsPlans, db.savingsCashFlows, db.scheduledPayments, db.userSettings,
   ]
 
   if (mode === 'overwrite') {
@@ -129,6 +140,7 @@ export async function importData(
       if (savingsPlans.length) await db.savingsPlans.bulkAdd(savingsPlans)
       if (savingsCashFlows.length) await db.savingsCashFlows.bulkAdd(savingsCashFlows)
       if (scheduledPayments.length) await db.scheduledPayments.bulkAdd(scheduledPayments)
+      if (importedSettings) await db.userSettings.put(importedSettings)
     })
   } else {
     // Merge: fetch existing IDs for each table, then only add records not yet present
@@ -164,6 +176,11 @@ export async function importData(
       if (newSP.length) await db.savingsPlans.bulkAdd(newSP)
       if (newSCF.length) await db.savingsCashFlows.bulkAdd(newSCF)
       if (newSch.length) await db.scheduledPayments.bulkAdd(newSch)
+      // Only adopt imported settings if this user has none yet (don't clobber
+      // an existing Discord webhook / summary prefs on merge)
+      if (importedSettings && !(await db.userSettings.get(userId))) {
+        await db.userSettings.put(importedSettings)
+      }
     })
   }
 

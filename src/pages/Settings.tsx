@@ -703,6 +703,7 @@ export default function Settings() {
                   { key: 'savingsPlans', label: 'แผนออม' },
                   { key: 'savingsCashFlows', label: 'กระแสเงิน (แผนออม)' },
                   { key: 'scheduledPayments', label: 'การจ่าย/รับล่วงหน้า' },
+                  { key: 'userSettings', label: 'การตั้งค่า (Discord)' },
                 ] as { key: keyof ImportPreview; label: string }[]
               ).map(({ key, label }) => {
                 const n = importPayload?.preview[key] ?? 0

@@ -223,7 +223,7 @@ export async function deleteAllCloudData(userId: string) {
 // Push every local record of this user to the cloud (after import).
 export async function pushAllUserData(userId: string) {
   if (!isSupabaseConfigured) return
-  const [accounts, tags, transactions, recurring, presets, savingsPlans, savingsCashFlows, scheduledPayments] =
+  const [accounts, tags, transactions, recurring, presets, savingsPlans, savingsCashFlows, scheduledPayments, settings] =
     await Promise.all([
       db.accounts.where('userId').equals(userId).toArray(),
       db.tags.where('userId').equals(userId).toArray(),
@@ -233,6 +233,7 @@ export async function pushAllUserData(userId: string) {
       db.savingsPlans.where('userId').equals(userId).toArray(),
       db.savingsCashFlows.where('userId').equals(userId).toArray(),
       db.scheduledPayments.where('userId').equals(userId).toArray(),
+      db.userSettings.get(userId),
     ])
   // parents first so FK references resolve
   if (accounts.length) throwIfError(await supabase.from('accounts').upsert(accounts.map(accountToRow)))
@@ -243,6 +244,7 @@ export async function pushAllUserData(userId: string) {
   if (savingsPlans.length) throwIfError(await supabase.from('savings_plans').upsert(savingsPlans.map(savingsPlanToRow)))
   if (savingsCashFlows.length) throwIfError(await supabase.from('savings_cash_flows').upsert(savingsCashFlows.map(savingsCashFlowToRow)))
   if (scheduledPayments.length) throwIfError(await supabase.from('scheduled_payments').upsert(scheduledPayments.map(scheduledPaymentToRow)))
+  if (settings) throwIfError(await supabase.from('user_settings').upsert(settingsToRow(settings)))
 }
 
 // ─── Seed defaults for new cloud users ───────────────────────────────────────
