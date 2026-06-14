@@ -18,6 +18,7 @@ import { formatAmount } from '../utils/formatters'
 import { isUrlIcon } from '../lib/storage'
 import type { TransactionType, Frequency } from '../types'
 import { nextDueDate, frequencyLabel } from '../utils/dateHelpers'
+import { evaluateExpression } from '../utils/calc'
 
 const FREQUENCIES: Frequency[] = ['daily', 'weekly', 'monthly', 'yearly']
 
@@ -105,7 +106,7 @@ export default function AddTransaction() {
   const filteredTags = tags.filter((t) => type === 'income' ? t.type !== 'expense' : type === 'expense' ? t.type !== 'income' : true)
 
   async function handleSave() {
-    const amt = parseFloat(amount)
+    const amt = evaluateExpression(amount)
     if (!amt || amt <= 0 || !accountId) return
     // transfer requires a destination account (different from source)
     if (type === 'transfer' && (!toAccountId || toAccountId === accountId)) return

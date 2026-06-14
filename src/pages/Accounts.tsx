@@ -13,6 +13,7 @@ import IconDisplay from '../components/ui/IconDisplay'
 import Header from '../components/layout/Header'
 import { formatAmount } from '../utils/formatters'
 import { uploadIcon, isUrlIcon } from '../lib/storage'
+import { evaluateExpression } from '../utils/calc'
 import type { Account, AccountType } from '../types'
 
 const ACCOUNT_TYPES: { value: AccountType; label: string; icon: string }[] = [
@@ -108,7 +109,7 @@ export default function Accounts() {
   }
 
   async function handleTransfer() {
-    const amt = parseFloat(transferAmt)
+    const amt = evaluateExpression(transferAmt)
     if (!amt || !fromId || !toId || fromId === toId) return
 
     setTransferInsufficient(false)
