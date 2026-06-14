@@ -19,7 +19,7 @@ import Modal from '../components/ui/Modal'
 import Button from '../components/ui/Button'
 import Header from '../components/layout/Header'
 import { formatAmount } from '../utils/formatters'
-import { exportData, importData, parseImportFile } from '../utils/exportImport'
+import { exportData, exportCSV, importData, parseImportFile } from '../utils/exportImport'
 import type { ImportPayload, ImportPreview } from '../utils/exportImport'
 import { db } from '../db/db'
 import type { Tag, TagType, Preset, TransactionType } from '../types'
@@ -333,7 +333,11 @@ export default function Settings() {
           <p className="font-semibold">ข้อมูล</p>
           <Button variant="secondary" fullWidth onClick={exportData}>
             <Download size={16} className="inline mr-2" />
-            ส่งออกข้อมูล (JSON)
+            ส่งออกข้อมูล (JSON สำหรับสำรอง)
+          </Button>
+          <Button variant="secondary" fullWidth onClick={exportCSV}>
+            <Download size={16} className="inline mr-2" />
+            ส่งออกรายการ (CSV สำหรับ Excel)
           </Button>
           <Button variant="secondary" fullWidth onClick={() => fileRef.current?.click()}>
             <Upload size={16} className="inline mr-2" />

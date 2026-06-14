@@ -36,6 +36,50 @@ export async function exportData(): Promise<void> {
   URL.revokeObjectURL(url)
 }
 
+// ─── CSV EXPORT (transactions, for Excel/Sheets) ─────────────────────────────
+
+function csvCell(v: string | number): string {
+  const s = String(v ?? '')
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+export async function exportCSV(): Promise<void> {
+  const [transactions, accounts, tags] = await Promise.all([
+    db.transactions.orderBy('date').reverse().toArray(),
+    db.accounts.toArray(),
+    db.tags.toArray(),
+  ])
+  const accName = (id?: string) => accounts.find((a) => a.id === id)?.name ?? ''
+  const tagName = (id?: string) => tags.find((t) => t.id === id)?.name ?? ''
+  const typeLabel: Record<string, string> = { income: 'รายรับ', expense: 'รายจ่าย', transfer: 'โอนเงิน' }
+
+  const header = ['วันที่', 'เวลา', 'ประเภท', 'จำนวน', 'บัญชี', 'บัญชีปลายทาง', 'หมวดหมู่', 'บันทึก', 'รายการต่อเนื่อง']
+  const rows = transactions.map((t) => {
+    const d = new Date(t.date)
+    return [
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+      typeLabel[t.type] ?? t.type,
+      t.amount,
+      accName(t.accountId),
+      t.type === 'transfer' ? accName(t.toAccountId) : '',
+      tagName(t.tagId),
+      t.note ?? '',
+      t.isRecurring ? 'ใช่' : '',
+    ].map(csvCell).join(',')
+  })
+
+  // BOM so Excel reads UTF-8 Thai correctly
+  const csv = '﻿' + [header.map(csvCell).join(','), ...rows].join('\r\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `pocketflow-transactions-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 // ─── PREVIEW ──────────────────────────────────────────────────────────────────
 
 export interface ImportPreview {
