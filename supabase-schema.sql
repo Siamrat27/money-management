@@ -36,7 +36,8 @@ create table public.transactions (
   note          text not null default '',
   date          timestamptz not null,
   is_recurring  boolean not null default false,
-  recurring_id  text
+  recurring_id  text,
+  split_group_id text
 );
 
 -- ── recurring ────────────────────────────────────────────────────────────────

@@ -312,6 +312,7 @@ function transactionToRow(t: Transaction) {
     account_id: t.accountId, to_account_id: t.toAccountId ?? null,
     tag_id: t.tagId ?? null, note: t.note, date: t.date.toISOString(),
     is_recurring: t.isRecurring, recurring_id: t.recurringId ?? null,
+    split_group_id: t.splitGroupId ?? null,
   }
 }
 
@@ -323,6 +324,7 @@ function rowToTransaction(r: Record<string, unknown>): Transaction {
     tagId: (r.tag_id as string | null) ?? undefined, note: r.note as string,
     date: new Date(r.date as string), isRecurring: r.is_recurring as boolean,
     recurringId: (r.recurring_id as string | null) ?? undefined,
+    splitGroupId: (r.split_group_id as string | null) ?? undefined,
   }
 }
 

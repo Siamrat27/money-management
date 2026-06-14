@@ -48,6 +48,7 @@ export interface Transaction {
   date: Date
   isRecurring: boolean
   recurringId?: string
+  splitGroupId?: string // shared by transactions that were entered as one split
 }
 
 export interface Recurring {

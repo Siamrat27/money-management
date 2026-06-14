@@ -222,6 +222,7 @@ export default function Calendar() {
                           <p className="text-sm font-medium truncate">{t.note || tag?.name || (isTransfer ? 'โอนเงิน' : '-')}</p>
                           {isTransfer && <span className="flex-shrink-0 text-[9px] leading-none bg-blue-100 dark:bg-blue-950 text-blue-500 rounded-full px-1.5 py-0.5 font-semibold">โอน</span>}
                           {t.isRecurring && <span className="flex-shrink-0 text-[9px] leading-none bg-indigo-100 dark:bg-indigo-950 text-indigo-500 rounded-full px-1.5 py-0.5">🔄</span>}
+                          {t.splitGroupId && <span className="flex-shrink-0 text-[9px] leading-none bg-purple-100 dark:bg-purple-950 text-purple-500 rounded-full px-1.5 py-0.5">🔗</span>}
                         </div>
                         <p className="text-xs text-gray-400 truncate">
                           {isTransfer ? `${account?.name ?? '?'} → ${toAccount?.name ?? '?'}` : account?.name}

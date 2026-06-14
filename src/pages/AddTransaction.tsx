@@ -52,6 +52,14 @@ export default function AddTransaction() {
   const tagManuallySet = useRef(false)
   const [autoTagged, setAutoTagged] = useState(false)
 
+  // Split: one entry across multiple categories → N transactions sharing a group id
+  const [splitMode, setSplitMode] = useState(false)
+  const [splitLines, setSplitLines] = useState<{ tagId: string; amount: string }[]>([
+    { tagId: '', amount: '' },
+    { tagId: '', amount: '' },
+  ])
+  const splitTotal = splitLines.reduce((s, l) => s + (evaluateExpression(l.amount) || 0), 0)
+
   useEffect(() => {
     if (accounts.length > 0 && accountId === null) {
       setAccountId((accounts.find((a) => !a.archived) ?? accounts[0]).id)
@@ -112,7 +120,52 @@ export default function AddTransaction() {
   const accountOptions = accounts.filter((a) => !a.archived || a.id === accountId)
   const toAccountOptions = accounts.filter((a) => a.id !== accountId && (!a.archived || a.id === toAccountId))
 
+  function resetForm() {
+    setAmount('0')
+    setNote('')
+    setIsRecurring(false)
+    setSplitMode(false)
+    setSplitLines([{ tagId: '', amount: '' }, { tagId: '', amount: '' }])
+    tagManuallySet.current = false
+    setAutoTagged(false)
+  }
+
+  function buildTxnDate(): Date {
+    const now = new Date()
+    const [yr, mo, dy] = date.split('-').map(Number)
+    return new Date(yr, mo - 1, dy, now.getHours(), now.getMinutes(), now.getSeconds())
+  }
+
+  async function handleSaveSplit() {
+    if (!accountId) return
+    const lines = splitLines
+      .map((l) => ({ tagId: l.tagId || undefined, amount: evaluateExpression(l.amount) }))
+      .filter((l) => l.amount > 0)
+    if (lines.length < 2) return // a split needs at least 2 positive lines
+    const total = lines.reduce((s, l) => s + l.amount, 0)
+
+    setInsufficientFunds(false)
+    if (type === 'expense') {
+      const balance = await getAccountBalance(accountId)
+      if (balance - total < 0) { setInsufficientFunds(true); return }
+    }
+
+    const txnDate = buildTxnDate()
+    const splitGroupId = crypto.randomUUID()
+    for (const l of lines) {
+      await addTransaction({
+        type: type as 'income' | 'expense',
+        amount: l.amount, accountId, tagId: l.tagId,
+        note, date: txnDate, isRecurring: false, splitGroupId,
+      })
+    }
+    resetForm()
+    setPage('dashboard')
+  }
+
   async function handleSave() {
+    if (splitMode && type !== 'transfer' && !editTransactionId) return handleSaveSplit()
+
     const amt = evaluateExpression(amount)
     if (!amt || amt <= 0 || !accountId) return
     // transfer requires a destination account (different from source)
@@ -159,11 +212,7 @@ export default function AddTransaction() {
         })
       }
     }
-    setAmount('0')
-    setNote('')
-    setIsRecurring(false)
-    tagManuallySet.current = false
-    setAutoTagged(false)
+    resetForm()
     setPage('dashboard')
   }
 
@@ -212,7 +261,7 @@ export default function AddTransaction() {
           {(['expense', 'income', 'transfer'] as TransactionType[]).map((t) => (
             <button
               key={t}
-              onClick={() => { setType(t); setTagId(null); tagManuallySet.current = false; setAutoTagged(false) }}
+              onClick={() => { setType(t); setTagId(null); tagManuallySet.current = false; setAutoTagged(false); if (t === 'transfer') setSplitMode(false) }}
               className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${
                 type === t
                   ? t === 'income' ? 'bg-green-500 text-white'
@@ -227,10 +276,12 @@ export default function AddTransaction() {
         </div>
 
         {/* Amount Display */}
-        <AmountDisplay value={amount} />
+        <AmountDisplay value={splitMode ? String(splitTotal) : amount} />
 
-        {/* Numpad */}
-        <Numpad value={amount} onChange={(v) => { setAmount(v); setInsufficientFunds(false) }} />
+        {/* Numpad — hidden in split mode (each line has its own amount) */}
+        {!splitMode && (
+          <Numpad value={amount} onChange={(v) => { setAmount(v); setInsufficientFunds(false) }} />
+        )}
 
         {/* Fields */}
         <div className="space-y-3">
@@ -286,8 +337,21 @@ export default function AddTransaction() {
             </div>
           )}
 
-          {/* Tag */}
-          {type !== 'transfer' && (
+          {/* Split toggle (expense/income, new entries only) */}
+          {type !== 'transfer' && !editTransactionId && (
+            <label className="flex items-center gap-3 cursor-pointer">
+              <div
+                onClick={() => setSplitMode((v) => !v)}
+                className={`w-12 h-6 rounded-full transition-colors flex items-center ${splitMode ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+              >
+                <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${splitMode ? 'translate-x-6' : ''}`} />
+              </div>
+              <span className="text-sm font-medium">แยกเป็นหลายหมวด</span>
+            </label>
+          )}
+
+          {/* Tag (single) */}
+          {type !== 'transfer' && !splitMode && (
             <div>
               <label className="text-xs text-gray-500 mb-1 block">
                 หมวดหมู่
@@ -307,6 +371,44 @@ export default function AddTransaction() {
                     {tag.name}
                   </button>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Split editor */}
+          {type !== 'transfer' && splitMode && (
+            <div className="space-y-2">
+              <label className="text-xs text-gray-500 block">แยกหมวดหมู่ (อย่างน้อย 2 รายการ)</label>
+              {splitLines.map((line, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <select
+                    value={line.tagId}
+                    onChange={(e) => setSplitLines((ls) => ls.map((l, j) => j === i ? { ...l, tagId: e.target.value } : l))}
+                    className="flex-1 min-w-0 px-3 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none"
+                  >
+                    <option value="">ไม่ระบุหมวด</option>
+                    {filteredTags.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                  <input
+                    type="number" inputMode="decimal" value={line.amount}
+                    onChange={(e) => { setSplitLines((ls) => ls.map((l, j) => j === i ? { ...l, amount: e.target.value } : l)); setInsufficientFunds(false) }}
+                    placeholder="0"
+                    className="w-24 px-3 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none text-right"
+                  />
+                  {splitLines.length > 2 && (
+                    <button onClick={() => setSplitLines((ls) => ls.filter((_, j) => j !== i))} className="p-1.5 text-gray-400 active:text-red-500 flex-shrink-0">✕</button>
+                  )}
+                </div>
+              ))}
+              <button
+                onClick={() => setSplitLines((ls) => [...ls, { tagId: '', amount: '' }])}
+                className="text-sm text-indigo-500 font-medium"
+              >
+                + เพิ่มหมวด
+              </button>
+              <div className="flex justify-between text-sm pt-1 border-t border-gray-100 dark:border-gray-800">
+                <span className="text-gray-400">รวมทั้งหมด</span>
+                <span className="font-bold">฿{formatAmount(splitTotal)}</span>
               </div>
             </div>
           )}
@@ -335,7 +437,7 @@ export default function AddTransaction() {
           </div>
 
           {/* Recurring */}
-          {type !== 'transfer' && !editTransactionId && (
+          {type !== 'transfer' && !editTransactionId && !splitMode && (
             <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4">
               <label className="flex items-center gap-3 cursor-pointer">
                 <div
