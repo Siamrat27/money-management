@@ -1,0 +1,5 @@
+# Supabase project config (only the bits PocketFlow needs).
+# The external "tx" API authenticates with its own api_key, NOT a Supabase JWT,
+# so JWT verification must be disabled for that function.
+[functions.tx]
+verify_jwt = false

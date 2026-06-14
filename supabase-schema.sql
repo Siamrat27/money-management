@@ -227,3 +227,23 @@ create policy "own scheduled_payments" on public.scheduled_payments  for all usi
 
 create index on public.scheduled_payments (user_id, is_active, due_date);
 create index on public.savings_cash_flows (plan_id);
+
+-- ── api_keys (external API access: pay / receive / transfer) ─────────────────
+-- Keys are stored hashed (sha-256). The full key is shown to the user once.
+-- The Edge Function "tx" looks keys up with the service-role key (bypasses RLS).
+create table public.api_keys (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid references auth.users(id) on delete cascade not null,
+  label        text not null default '',
+  prefix       text not null,          -- first chars, for display only
+  key_hash     text not null unique,   -- sha-256 hex of the full key
+  created_at   timestamptz not null default now(),
+  last_used_at timestamptz
+);
+
+alter table public.api_keys enable row level security;
+-- Users manage only their own keys; the Edge Function uses service-role to read.
+create policy "own api_keys" on public.api_keys
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create index on public.api_keys (key_hash);

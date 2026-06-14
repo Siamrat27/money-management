@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { APP_VERSION } from '../version'
-import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List, LogOut, RefreshCw, Zap, Bell, PiggyBank, CalendarClock, Target, Lock } from 'lucide-react'
+import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List, LogOut, RefreshCw, Zap, Bell, PiggyBank, CalendarClock, Target, Lock, KeyRound, Copy, Check } from 'lucide-react'
 import { hasPin, setPin, clearPin, verifyPin } from '../lib/pin'
+import { listApiKeys, createApiKey, deleteApiKey, txEndpoint } from '../lib/apiKeys'
+import type { ApiKeyRow } from '../lib/apiKeys'
 import IconDisplay from '../components/ui/IconDisplay'
 import { uploadIcon, isUrlIcon } from '../lib/storage'
 import { useTags, addTag, updateTag, deleteTag, restoreTag } from '../hooks/useTags'
@@ -183,6 +185,51 @@ export default function Settings() {
   }
 
   const [clearConfirm, setClearConfirm] = useState(false)
+
+  // API keys (external pay/receive/transfer)
+  const [apiKeys, setApiKeys] = useState<ApiKeyRow[]>([])
+  const [newKeyLabel, setNewKeyLabel] = useState('')
+  const [revealedKey, setRevealedKey] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [deleteKeyConfirm, setDeleteKeyConfirm] = useState<ApiKeyRow | null>(null)
+  const [keyBusy, setKeyBusy] = useState(false)
+
+  useEffect(() => {
+    if (isSupabaseConfigured && user) listApiKeys().then(setApiKeys).catch(console.error)
+  }, [user?.id])
+
+  async function handleCreateKey() {
+    if (!user) return
+    setKeyBusy(true)
+    try {
+      const { row, fullKey } = await createApiKey(user.id, newKeyLabel || 'Key')
+      setApiKeys((ks) => [row, ...ks])
+      setNewKeyLabel('')
+      setRevealedKey(fullKey)
+      setCopied(false)
+    } catch (e) {
+      console.error(e)
+    }
+    setKeyBusy(false)
+  }
+
+  async function handleDeleteKey() {
+    if (!deleteKeyConfirm) return
+    const id = deleteKeyConfirm.id
+    setDeleteKeyConfirm(null)
+    await deleteApiKey(id).catch(console.error)
+    setApiKeys((ks) => ks.filter((k) => k.id !== id))
+  }
+
+  async function copyKey(text: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // clipboard blocked — user can still select manually
+    }
+  }
 
   // PIN lock
   const [pinEnabled, setPinEnabled] = useState(hasPin())
@@ -431,6 +478,61 @@ export default function Settings() {
           </div>
         </Card>
 
+        {/* External API */}
+        {isSupabaseConfigured && user && (
+          <Card className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <KeyRound size={18} className="text-indigo-500" />
+              <p className="font-semibold">API เชื่อมต่อภายนอก</p>
+            </div>
+            <p className="text-xs text-gray-400">สร้าง key เพื่อให้แอป/บริการอื่นบันทึก รับ / จ่าย / โอน ผ่าน API ได้</p>
+
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 space-y-1">
+              <p className="text-xs font-medium text-gray-500">Endpoint (POST)</p>
+              <p className="text-xs font-mono break-all text-gray-600 dark:text-gray-300">{txEndpoint()}</p>
+            </div>
+
+            {apiKeys.length > 0 && (
+              <div className="space-y-2">
+                {apiKeys.map((k) => (
+                  <div key={k.id} className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{k.label || 'Key'}</p>
+                      <p className="text-xs text-gray-400 font-mono">{k.prefix}••••••••</p>
+                    </div>
+                    <button onClick={() => setDeleteKeyConfirm(k)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500">
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <input
+                type="text" value={newKeyLabel}
+                onChange={(e) => setNewKeyLabel(e.target.value)}
+                placeholder="ชื่อ key เช่น Shortcut, บอท..."
+                className="flex-1 min-w-0 px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none"
+              />
+              <Button onClick={handleCreateKey} disabled={keyBusy} className="flex-shrink-0">
+                <Plus size={15} className="inline mr-1" />สร้าง
+              </Button>
+            </div>
+
+            <details>
+              <summary className="text-xs text-gray-400 cursor-pointer">ตัวอย่างการเรียกใช้</summary>
+              <pre className="text-[10px] leading-relaxed bg-gray-900 text-gray-100 rounded-xl p-3 mt-2 overflow-x-auto">{`curl -X POST '${txEndpoint()}' \\
+  -H 'Authorization: Bearer <your_key>' \\
+  -H 'Content-Type: application/json' \\
+  -d '{"action":"expense","amount":120,"account":"เงินสด","category":"อาหาร","note":"ข้าว"}'
+
+# action: income | expense | transfer (รับ | จ่าย | โอน)
+# transfer ต้องมี "toAccount" ด้วย`}</pre>
+            </details>
+          </Card>
+        )}
+
         {/* Security */}
         <Card className="p-4 space-y-3">
           <div className="flex items-center gap-2">
@@ -666,6 +768,37 @@ export default function Settings() {
             <Button fullWidth variant={pinModal === 'remove' ? 'danger' : undefined} onClick={handlePinSave}>
               {pinModal === 'remove' ? 'ปิดใช้งาน' : 'บันทึก'}
             </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── REVEAL NEW API KEY (shown once) ── */}
+      <Modal open={!!revealedKey} onClose={() => setRevealedKey(null)} title="คัดลอก API Key">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            นี่คือ key ของคุณ — <span className="font-semibold">แสดงครั้งเดียวเท่านั้น</span> คัดลอกเก็บไว้ให้เรียบร้อย
+          </p>
+          <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+            <code className="flex-1 min-w-0 text-xs font-mono break-all">{revealedKey}</code>
+            <button onClick={() => revealedKey && copyKey(revealedKey)} className="flex-shrink-0 p-2 rounded-lg text-indigo-500 active:bg-indigo-50 dark:active:bg-indigo-950">
+              {copied ? <Check size={18} /> : <Copy size={18} />}
+            </button>
+          </div>
+          {copied && <p className="text-xs text-green-500 text-center">✓ คัดลอกแล้ว</p>}
+          <p className="text-xs text-gray-400">ถ้าทำหาย ให้ลบ key นี้แล้วสร้างใหม่</p>
+          <Button fullWidth onClick={() => setRevealedKey(null)}>เสร็จสิ้น</Button>
+        </div>
+      </Modal>
+
+      {/* ── DELETE API KEY CONFIRM ── */}
+      <Modal open={!!deleteKeyConfirm} onClose={() => setDeleteKeyConfirm(null)} title="ยืนยันการลบ key">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            ลบ key <span className="font-semibold">"{deleteKeyConfirm?.label || 'Key'}"</span> ใช่หรือไม่? บริการที่ใช้ key นี้จะเรียก API ไม่ได้ทันที
+          </p>
+          <div className="flex gap-3">
+            <Button variant="secondary" fullWidth onClick={() => setDeleteKeyConfirm(null)}>ยกเลิก</Button>
+            <Button variant="danger" fullWidth onClick={handleDeleteKey}>ลบ</Button>
           </div>
         </div>
       </Modal>
