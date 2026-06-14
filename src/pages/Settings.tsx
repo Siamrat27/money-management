@@ -187,6 +187,11 @@ export default function Settings() {
   const [clearConfirm, setClearConfirm] = useState(false)
 
   // API keys (external pay/receive/transfer)
+  const apiAccounts = accounts.filter((a) => !a.archived)
+  const egAcc1 = apiAccounts[0]?.name ?? 'เงินสด'
+  const egAcc2 = apiAccounts[1]?.name ?? 'ธนาคาร'
+  const egExpenseCat = tags.find((t) => t.type !== 'income')?.name ?? 'อาหาร'
+  const egIncomeCat = tags.find((t) => t.type !== 'expense')?.name ?? 'เงินเดือน'
   const [apiKeys, setApiKeys] = useState<ApiKeyRow[]>([])
   const [newKeyLabel, setNewKeyLabel] = useState('')
   const [revealedKey, setRevealedKey] = useState<string | null>(null)
@@ -521,14 +526,83 @@ export default function Settings() {
             </div>
 
             <details>
-              <summary className="text-xs text-gray-400 cursor-pointer">ตัวอย่างการเรียกใช้</summary>
-              <pre className="text-[10px] leading-relaxed bg-gray-900 text-gray-100 rounded-xl p-3 mt-2 overflow-x-auto">{`curl -X POST '${txEndpoint()}' \\
+              <summary className="text-xs text-gray-400 cursor-pointer">📖 วิธีใช้งาน + ข้อมูลของคุณ</summary>
+              <div className="mt-3 space-y-4 text-xs">
+
+                {/* Actions */}
+                <div>
+                  <p className="font-semibold text-gray-500 mb-1">action ที่ใช้ได้</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[['expense', 'จ่าย'], ['income', 'รับ'], ['transfer', 'โอน']].map(([en, th]) => (
+                      <span key={en} className="font-mono bg-gray-100 dark:bg-gray-800 rounded px-1.5 py-0.5">{en} <span className="text-gray-400">({th})</span></span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Accounts */}
+                <div>
+                  <p className="font-semibold text-gray-500 mb-1">บัญชีของคุณ (account / toAccount)</p>
+                  {apiAccounts.length === 0 ? (
+                    <p className="text-gray-400">— ยังไม่มีบัญชี —</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {apiAccounts.map((a) => (
+                        <span key={a.id} className="font-mono bg-gray-100 dark:bg-gray-800 rounded px-1.5 py-0.5">{a.name}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Categories */}
+                <div>
+                  <p className="font-semibold text-gray-500 mb-1">หมวดหมู่ของคุณ (category)</p>
+                  {tags.length === 0 ? (
+                    <p className="text-gray-400">— ยังไม่มีหมวดหมู่ —</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {tags.map((t) => (
+                        <span key={t.id} className="font-mono bg-gray-100 dark:bg-gray-800 rounded px-1.5 py-0.5">{t.name}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Field reference */}
+                <div>
+                  <p className="font-semibold text-gray-500 mb-1">ฟิลด์</p>
+                  <ul className="space-y-0.5 text-gray-500">
+                    <li><span className="font-mono text-gray-700 dark:text-gray-300">action</span> — จำเป็น</li>
+                    <li><span className="font-mono text-gray-700 dark:text-gray-300">amount</span> — จำเป็น (มากกว่า 0)</li>
+                    <li><span className="font-mono text-gray-700 dark:text-gray-300">account</span> — จำเป็น (ชื่อหรือ id)</li>
+                    <li><span className="font-mono text-gray-700 dark:text-gray-300">toAccount</span> — เฉพาะ transfer</li>
+                    <li><span className="font-mono text-gray-700 dark:text-gray-300">category</span> — ไม่บังคับ (income/expense)</li>
+                    <li><span className="font-mono text-gray-700 dark:text-gray-300">note</span> — ไม่บังคับ</li>
+                  </ul>
+                </div>
+
+                {/* Examples — all 3 actions */}
+                <div>
+                  <p className="font-semibold text-gray-500 mb-1">ตัวอย่าง — จ่าย (expense)</p>
+                  <pre className="text-[10px] leading-relaxed bg-gray-900 text-gray-100 rounded-xl p-3 overflow-x-auto">{`curl -X POST '${txEndpoint()}' \\
   -H 'Authorization: Bearer <your_key>' \\
   -H 'Content-Type: application/json' \\
-  -d '{"action":"expense","amount":120,"account":"เงินสด","category":"อาหาร","note":"ข้าว"}'
-
-# action: income | expense | transfer (รับ | จ่าย | โอน)
-# transfer ต้องมี "toAccount" ด้วย`}</pre>
+  -d '{"action":"expense","amount":120,"account":"${egAcc1}","category":"${egExpenseCat}","note":"ข้าวเที่ยง"}'`}</pre>
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-500 mb-1">ตัวอย่าง — รับ (income)</p>
+                  <pre className="text-[10px] leading-relaxed bg-gray-900 text-gray-100 rounded-xl p-3 overflow-x-auto">{`curl -X POST '${txEndpoint()}' \\
+  -H 'Authorization: Bearer <your_key>' \\
+  -H 'Content-Type: application/json' \\
+  -d '{"action":"income","amount":30000,"account":"${egAcc1}","category":"${egIncomeCat}","note":"เงินเดือน"}'`}</pre>
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-500 mb-1">ตัวอย่าง — โอน (transfer)</p>
+                  <pre className="text-[10px] leading-relaxed bg-gray-900 text-gray-100 rounded-xl p-3 overflow-x-auto">{`curl -X POST '${txEndpoint()}' \\
+  -H 'Authorization: Bearer <your_key>' \\
+  -H 'Content-Type: application/json' \\
+  -d '{"action":"transfer","amount":500,"account":"${egAcc1}","toAccount":"${egAcc2}","note":"ย้ายเงิน"}'`}</pre>
+                </div>
+              </div>
             </details>
           </Card>
         )}
