@@ -178,7 +178,8 @@ export default function Dashboard() {
   const userId = user?.id ?? LOCAL_USER_ID
   const summary = useRangeSummary(period)
   const chartData = useMonthlyChart()
-  const accounts = useAccounts()
+  const accounts = useAccounts() // full list — used to resolve names in history
+  const activeAccounts = accounts.filter((a) => !a.archived) // totals & chips
   const allTxns = useTransactions()
   const tags = useTags()
   const recent = allTxns.slice(0, 5)
@@ -242,7 +243,7 @@ export default function Dashboard() {
 
   const savings = useSavingsSummary()
   const netWorthData = useNetWorthTrend()
-  const totalBalance = accounts.reduce((sum, acc) => sum + calcBalance(acc.id, allTxns), 0)
+  const totalBalance = activeAccounts.reduce((sum, acc) => sum + calcBalance(acc.id, allTxns), 0)
 
   // Cash flow forecast
   const [forecastDays, setForecastDays] = useState<30 | 60 | 90>(30)
@@ -312,7 +313,7 @@ export default function Dashboard() {
           <p className="text-indigo-200 text-sm font-medium">ยอดรวมทั้งหมด</p>
           <p className="text-4xl font-bold mt-1">฿{formatAmount(totalBalance)}</p>
           <div className="mt-3 flex gap-3 flex-wrap">
-            {accounts.map((acc) => (
+            {activeAccounts.map((acc) => (
               <div key={acc.id} className="flex items-center gap-1.5">
                 <span className="w-5 h-5 rounded overflow-hidden inline-flex items-center justify-center flex-shrink-0">
                   <IconDisplay icon={acc.icon} />

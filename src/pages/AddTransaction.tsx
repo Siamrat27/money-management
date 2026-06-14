@@ -53,7 +53,9 @@ export default function AddTransaction() {
   const [autoTagged, setAutoTagged] = useState(false)
 
   useEffect(() => {
-    if (accounts.length > 0 && accountId === null) setAccountId(accounts[0].id)
+    if (accounts.length > 0 && accountId === null) {
+      setAccountId((accounts.find((a) => !a.archived) ?? accounts[0]).id)
+    }
   }, [accounts])
 
   useEffect(() => {
@@ -104,6 +106,11 @@ export default function AddTransaction() {
   }
 
   const filteredTags = tags.filter((t) => type === 'income' ? t.type !== 'expense' : type === 'expense' ? t.type !== 'income' : true)
+
+  // Pickers hide archived accounts, but keep a currently-selected archived one
+  // visible so editing an old transaction on an archived account still works.
+  const accountOptions = accounts.filter((a) => !a.archived || a.id === accountId)
+  const toAccountOptions = accounts.filter((a) => a.id !== accountId && (!a.archived || a.id === toAccountId))
 
   async function handleSave() {
     const amt = evaluateExpression(amount)
@@ -231,7 +238,7 @@ export default function AddTransaction() {
           <div>
             <label className="text-xs text-gray-500 mb-1 block">บัญชี{type === 'transfer' ? ' (จาก)' : ''}</label>
             <div className="flex gap-2 flex-wrap">
-              {accounts.map((a) => {
+              {accountOptions.map((a) => {
                 const bal = calcBal(a.id)
                 return (
                   <button
@@ -257,7 +264,7 @@ export default function AddTransaction() {
             <div>
               <label className="text-xs text-gray-500 mb-1 block flex items-center gap-1"><ArrowLeftRight size={12} />บัญชีปลายทาง</label>
               <div className="flex gap-2 flex-wrap">
-                {accounts.filter((a) => a.id !== accountId).map((a) => {
+                {toAccountOptions.map((a) => {
                   const bal = calcBal(a.id)
                   return (
                     <button

@@ -11,6 +11,7 @@ export interface Account {
   color: string
   icon: string
   createdAt: Date
+  archived?: boolean // hidden from totals & pickers; history preserved
 }
 
 export interface Tag {

@@ -9,7 +9,8 @@ create table public.accounts (
   type        text not null check (type in ('cash','bank','savings','other')),
   color       text not null default '#6366f1',
   icon        text not null default '💵',
-  created_at  timestamptz not null default now()
+  created_at  timestamptz not null default now(),
+  archived    boolean not null default false
 );
 
 -- ── tags ────────────────────────────────────────────────────────────────────

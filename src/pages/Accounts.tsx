@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Edit2, Trash2, ArrowLeftRight } from 'lucide-react'
+import { Plus, Edit2, Trash2, ArrowLeftRight, Archive, ArchiveRestore } from 'lucide-react'
 import { useAccounts, addAccount, updateAccount, deleteAccount, restoreAccount, getAccountBalance, calcBalance } from '../hooks/useAccounts'
 import { useSnackbar } from '../stores/useSnackbar'
 import { useTransactions, addTransaction } from '../hooks/useTransactions'
@@ -38,6 +38,8 @@ function AccountBalance({ id }: { id: string }) {
 
 export default function Accounts() {
   const accounts = useAccounts()
+  const activeAccounts = accounts.filter((a) => !a.archived)
+  const archivedAccounts = accounts.filter((a) => a.archived)
   const [modal, setModal] = useState<'add' | 'edit' | 'transfer' | null>(null)
   const [editing, setEditing] = useState<Account | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Account | null>(null)
@@ -141,7 +143,7 @@ export default function Accounts() {
       />
 
       <div className="max-w-lg mx-auto px-4 py-4 space-y-3">
-        {accounts.map((a) => (
+        {activeAccounts.map((a) => (
           <Card key={a.id} className="p-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl overflow-hidden" style={{ backgroundColor: a.color + '22' }}>
@@ -154,17 +156,18 @@ export default function Accounts() {
               <AccountBalance id={a.id} />
               <div className="flex gap-1">
                 <button onClick={() => openEdit(a)} className="p-2 rounded-lg active:bg-gray-100 dark:active:bg-gray-800 text-gray-400"><Edit2 size={16} /></button>
+                <button onClick={() => updateAccount(a.id, { archived: true })} className="p-2 rounded-lg active:bg-gray-100 dark:active:bg-gray-800 text-gray-400" title="ซ่อนบัญชี"><Archive size={16} /></button>
                 <button onClick={() => handleDelete(a)} className="p-2 rounded-lg active:bg-red-50 dark:active:bg-red-950 text-gray-400"><Trash2 size={16} /></button>
               </div>
             </div>
           </Card>
         ))}
 
-        {accounts.length >= 2 && (
+        {activeAccounts.length >= 2 && (
           <Button
             variant="secondary"
             fullWidth
-            onClick={() => { setFromId(accounts[0].id); setToId(accounts[1].id); setModal('transfer') }}
+            onClick={() => { setFromId(activeAccounts[0].id); setToId(activeAccounts[1].id); setModal('transfer') }}
           >
             <ArrowLeftRight size={16} className="inline mr-2" />
             โอนเงินระหว่างบัญชี
@@ -176,6 +179,34 @@ export default function Accounts() {
             <p className="text-4xl mb-2">🏦</p>
             <p className="text-gray-400 mb-4">ยังไม่มีบัญชี</p>
             <Button onClick={openAdd}>เพิ่มบัญชี</Button>
+          </div>
+        )}
+
+        {/* Archived accounts — excluded from totals & pickers, history kept */}
+        {archivedAccounts.length > 0 && (
+          <div className="pt-2">
+            <p className="text-xs font-semibold text-gray-400 mb-2 flex items-center gap-1">
+              <Archive size={13} /> บัญชีที่ซ่อนไว้ (ไม่นำมาคำนวณ)
+            </p>
+            <div className="space-y-2">
+              {archivedAccounts.map((a) => (
+                <Card key={a.id} className="p-4 opacity-60">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl overflow-hidden grayscale" style={{ backgroundColor: a.color + '22' }}>
+                      <IconDisplay icon={a.icon} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{a.name}</p>
+                      <AccountBalance id={a.id} />
+                    </div>
+                    <button onClick={() => updateAccount(a.id, { archived: false })} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-indigo-500 active:bg-indigo-50 dark:active:bg-indigo-950">
+                      <ArchiveRestore size={15} /> นำกลับ
+                    </button>
+                    <button onClick={() => handleDelete(a)} className="p-2 rounded-lg active:bg-red-50 dark:active:bg-red-950 text-gray-400"><Trash2 size={15} /></button>
+                  </div>
+                </Card>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -272,7 +303,7 @@ export default function Accounts() {
           <div>
             <label className="text-xs text-gray-500 block mb-1">จากบัญชี</label>
             <div className="flex gap-2 flex-wrap">
-              {accounts.map((a) => (
+              {activeAccounts.map((a) => (
                 <button key={a.id} onClick={() => { setFromId(a.id); setTransferInsufficient(false) }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${fromId === a.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'}`}>
                   {isUrlIcon(a.icon) ? <img src={a.icon} className="w-4 h-4 rounded object-cover flex-shrink-0" alt="" /> : a.icon} {a.name}
@@ -283,7 +314,7 @@ export default function Accounts() {
           <div>
             <label className="text-xs text-gray-500 block mb-1">ไปบัญชี</label>
             <div className="flex gap-2 flex-wrap">
-              {accounts.filter((a) => a.id !== fromId).map((a) => (
+              {activeAccounts.filter((a) => a.id !== fromId).map((a) => (
                 <button key={a.id} onClick={() => setToId(a.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${toId === a.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 text-blue-600' : 'border-gray-200 dark:border-gray-700'}`}>
                   {isUrlIcon(a.icon) ? <img src={a.icon} className="w-4 h-4 rounded object-cover flex-shrink-0" alt="" /> : a.icon} {a.name}

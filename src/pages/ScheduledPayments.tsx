@@ -232,7 +232,7 @@ export default function ScheduledPayments() {
 
   function openAdd() {
     setEditingPayment(null)
-    setForm({ ...EMPTY_FORM, accountId: accounts[0]?.id ?? '', dueDate: format(new Date(), "yyyy-MM-dd'T'HH:mm") })
+    setForm({ ...EMPTY_FORM, accountId: accounts.find((a) => !a.archived)?.id ?? '', dueDate: format(new Date(), "yyyy-MM-dd'T'HH:mm") })
     setModal(true)
   }
 
@@ -373,7 +373,7 @@ export default function ScheduledPayments() {
           <div>
             <label className="text-xs text-gray-500 block mb-1">บัญชี</label>
             <div className="flex gap-2 flex-wrap">
-              {accounts.map((a) => (
+              {accounts.filter((a) => !a.archived || a.id === form.accountId).map((a) => (
                 <button
                   key={a.id}
                   onClick={() => setForm((f) => ({ ...f, accountId: a.id }))}

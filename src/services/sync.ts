@@ -278,6 +278,7 @@ function accountToRow(a: Account) {
   return {
     id: a.id, user_id: a.userId, name: a.name, type: a.type,
     color: a.color, icon: a.icon, created_at: a.createdAt.toISOString(),
+    archived: a.archived ?? false,
   }
 }
 
@@ -286,6 +287,7 @@ function rowToAccount(r: Record<string, unknown>): Account {
     id: r.id as string, userId: r.user_id as string, name: r.name as string,
     type: r.type as Account['type'], color: r.color as string, icon: r.icon as string,
     createdAt: new Date(r.created_at as string),
+    archived: (r.archived as boolean | null) ?? undefined,
   }
 }
 

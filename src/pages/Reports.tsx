@@ -187,7 +187,7 @@ export default function Reports() {
             className={`px-3 py-1.5 rounded-xl text-sm font-medium border-2 ${accountFilter === null ? 'border-indigo-500 text-indigo-600 bg-indigo-50 dark:bg-indigo-950' : 'border-gray-200 dark:border-gray-700'}`}>
             ทุกบัญชี
           </button>
-          {accounts.map((a) => (
+          {accounts.filter((a) => !a.archived).map((a) => (
             <button key={a.id} onClick={() => setAccountFilter(a.id)}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-sm font-medium border-2 ${accountFilter === a.id ? 'border-indigo-500 text-indigo-600 bg-indigo-50 dark:bg-indigo-950' : 'border-gray-200 dark:border-gray-700'}`}>
               {isUrlIcon(a.icon)

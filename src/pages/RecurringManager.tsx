@@ -32,7 +32,7 @@ export default function RecurringManager() {
 
   function openAdd() {
     setEditing(null)
-    setForm({ name: '', type: 'expense', amount: '', accountId: accounts[0]?.id ?? '', tagId: undefined, frequency: 'monthly', startDate: format(new Date(), 'yyyy-MM-dd') })
+    setForm({ name: '', type: 'expense', amount: '', accountId: accounts.find((a) => !a.archived)?.id ?? '', tagId: undefined, frequency: 'monthly', startDate: format(new Date(), 'yyyy-MM-dd') })
     setModal(true)
   }
 
@@ -160,7 +160,7 @@ export default function RecurringManager() {
           <div>
             <label className="text-xs text-gray-500 block mb-1">บัญชี</label>
             <div className="flex gap-2 flex-wrap">
-              {accounts.map((a) => (
+              {accounts.filter((a) => !a.archived || a.id === form.accountId).map((a) => (
                 <button key={a.id} onClick={() => setForm((f) => ({ ...f, accountId: a.id }))}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${form.accountId === a.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'}`}>
                   {isUrlIcon(a.icon)

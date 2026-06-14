@@ -127,7 +127,7 @@ export default function Settings() {
 
   function openAddPreset() {
     setEditingPreset(null)
-    setPresetForm({ name: '', type: 'expense', amount: '', accountId: accounts[0]?.id ?? '', toAccountId: '', tagId: '', note: '' })
+    setPresetForm({ name: '', type: 'expense', amount: '', accountId: accounts.find((a) => !a.archived)?.id ?? '', toAccountId: '', tagId: '', note: '' })
     setPresetModal(true)
   }
 
@@ -549,7 +549,7 @@ export default function Settings() {
           <div>
             <label className="text-xs text-gray-500 block mb-1">บัญชี{presetForm.type === 'transfer' ? ' (จาก)' : ''}</label>
             <div className="flex gap-2 flex-wrap">
-              {accounts.map((a) => (
+              {accounts.filter((a) => !a.archived || a.id === presetForm.accountId).map((a) => (
                 <button key={a.id} onClick={() => setPresetForm((f) => ({ ...f, accountId: a.id }))}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${presetForm.accountId === a.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'}`}>
                   {isUrlIcon(a.icon) ? <img src={a.icon} className="w-4 h-4 rounded object-cover flex-shrink-0" alt="" /> : a.icon} {a.name}
@@ -561,7 +561,7 @@ export default function Settings() {
             <div>
               <label className="text-xs text-gray-500 block mb-1">บัญชีปลายทาง</label>
               <div className="flex gap-2 flex-wrap">
-                {accounts.filter((a) => a.id !== presetForm.accountId).map((a) => (
+                {accounts.filter((a) => a.id !== presetForm.accountId && (!a.archived || a.id === presetForm.toAccountId)).map((a) => (
                   <button key={a.id} onClick={() => setPresetForm((f) => ({ ...f, toAccountId: a.id }))}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${presetForm.toAccountId === a.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 text-blue-600' : 'border-gray-200 dark:border-gray-700'}`}>
                     {isUrlIcon(a.icon) ? <img src={a.icon} className="w-4 h-4 rounded object-cover flex-shrink-0" alt="" /> : a.icon} {a.name}
