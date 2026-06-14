@@ -10,6 +10,9 @@ import {
 } from '../hooks/useSavingsPlans'
 import { useSnackbar } from '../stores/useSnackbar'
 import { useAppStore } from '../stores/useAppStore'
+import { useAccounts, calcBalance } from '../hooks/useAccounts'
+import { useTransactions } from '../hooks/useTransactions'
+import { isUrlIcon } from '../lib/storage'
 import Header from '../components/layout/Header'
 import Card from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
@@ -90,6 +93,7 @@ const EMPTY_PLAN_FORM = {
   targetDate: format(addMonths(new Date(), 12), 'yyyy-MM-dd'),
   initialAmount: '',
   note: '',
+  linkedAccountId: '', // '' = not linked, use manual initialAmount
 }
 
 const EMPTY_CF_FORM = {
@@ -102,9 +106,17 @@ const EMPTY_CF_FORM = {
 
 export default function SavingsPlanner() {
   const plans = useSavingsPlans()
+  const accounts = useAccounts()
+  const allTxns = useTransactions()
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
   const cashFlows = useSavingsCashFlows(selectedPlanId ?? '')
   const { setSubPage } = useAppStore()
+
+  // Linked plans take their current balance from the real account
+  const effectiveInitial = (plan: SavingsPlan) =>
+    plan.linkedAccountId ? calcBalance(plan.linkedAccountId, allTxns) : plan.initialAmount
+  const withEffective = (plan: SavingsPlan): SavingsPlan =>
+    plan.linkedAccountId ? { ...plan, initialAmount: effectiveInitial(plan) } : plan
 
   const [planModal, setPlanModal] = useState(false)
   const [editingPlan, setEditingPlan] = useState<SavingsPlan | null>(null)
@@ -120,19 +132,22 @@ export default function SavingsPlanner() {
 
   const selectedPlan = plans.find((p) => p.id === selectedPlanId)
   const isDetailView = !!selectedPlanId && !!selectedPlan
+  const effectiveSelected = selectedPlan ? withEffective(selectedPlan) : undefined
+  const selectedInitial = selectedPlan ? effectiveInitial(selectedPlan) : 0
+  const linkedAccount = selectedPlan?.linkedAccountId ? accounts.find((a) => a.id === selectedPlan.linkedAccountId) : undefined
 
   const chartData = useMemo(
-    () => (selectedPlan ? generateChartData(selectedPlan, cashFlows) : []),
-    [selectedPlan, cashFlows]
+    () => (effectiveSelected ? generateChartData(effectiveSelected, cashFlows) : []),
+    [effectiveSelected, cashFlows]
   )
   const projectedOnTarget = useMemo(
-    () => (selectedPlan ? projectBalanceAt(selectedPlan, cashFlows, selectedPlan.targetDate) : 0),
-    [selectedPlan, cashFlows]
+    () => (effectiveSelected ? projectBalanceAt(effectiveSelected, cashFlows, effectiveSelected.targetDate) : 0),
+    [effectiveSelected, cashFlows]
   )
   const projectedOnCheckDate = useMemo(() => {
-    if (!selectedPlan || !checkDate) return null
-    return projectBalanceAt(selectedPlan, cashFlows, new Date(checkDate + 'T00:00:00'))
-  }, [selectedPlan, cashFlows, checkDate])
+    if (!effectiveSelected || !checkDate) return null
+    return projectBalanceAt(effectiveSelected, cashFlows, new Date(checkDate + 'T00:00:00'))
+  }, [effectiveSelected, cashFlows, checkDate])
 
   function openAddPlan() {
     setEditingPlan(null)
@@ -148,6 +163,7 @@ export default function SavingsPlanner() {
       targetDate: format(plan.targetDate, 'yyyy-MM-dd'),
       initialAmount: String(plan.initialAmount),
       note: plan.note ?? '',
+      linkedAccountId: plan.linkedAccountId ?? '',
     })
     setPlanModal(true)
   }
@@ -160,8 +176,10 @@ export default function SavingsPlanner() {
       name: planForm.name.trim(),
       targetAmount: target,
       targetDate: new Date(planForm.targetDate + 'T00:00:00'),
-      initialAmount: initial,
+      // when linked, initialAmount is unused (balance comes from the account)
+      initialAmount: planForm.linkedAccountId ? 0 : initial,
       note: planForm.note.trim() || undefined,
+      linkedAccountId: planForm.linkedAccountId || undefined,
     }
     if (editingPlan) await updateSavingsPlan(editingPlan.id, data)
     else await addSavingsPlan(data)
@@ -243,7 +261,8 @@ export default function SavingsPlanner() {
             </div>
           ) : (
             plans.map((plan) => {
-              const progress = Math.min(100, Math.round((plan.initialAmount / plan.targetAmount) * 100))
+              const current = effectiveInitial(plan)
+              const progress = Math.min(100, Math.round((current / plan.targetAmount) * 100))
               const daysLeft = differenceInDays(startOfDay(plan.targetDate), startOfDay(new Date()))
               return (
                 <Card
@@ -261,7 +280,8 @@ export default function SavingsPlanner() {
                         <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
                       </div>
                       <p className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
-                        ฿{formatAmount(plan.initialAmount)} / ฿{formatAmount(plan.targetAmount)}
+                        ฿{formatAmount(current)} / ฿{formatAmount(plan.targetAmount)}
+                        {plan.linkedAccountId && <span className="ml-1 text-[10px] text-gray-400">🔗</span>}
                       </p>
                       <p className="text-xs text-gray-400 mt-0.5">
                         {format(plan.targetDate, 'd MMM yyyy', { locale: th })}
@@ -296,8 +316,13 @@ export default function SavingsPlanner() {
                   <p className="font-semibold text-sm">{format(selectedPlan.targetDate, 'd MMM yyyy', { locale: th })}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400">ยอดเริ่มต้น</p>
-                  <p className="font-semibold text-sm">฿{formatAmount(selectedPlan.initialAmount)}</p>
+                  <p className="text-xs text-gray-400">{linkedAccount ? 'ยอดปัจจุบัน' : 'ยอดเริ่มต้น'}</p>
+                  <p className="font-semibold text-sm">
+                    ฿{formatAmount(selectedInitial)}
+                    {linkedAccount && (
+                      <span className="ml-1 text-[10px] text-indigo-400">🔗 {linkedAccount.name}</span>
+                    )}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-400">คาดการณ์ถึงเป้า</p>
@@ -455,15 +480,41 @@ export default function SavingsPlanner() {
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">ยอดเริ่มต้น (฿)</label>
-            <input
-              type="number"
-              value={planForm.initialAmount}
-              onChange={(e) => setPlanForm((f) => ({ ...f, initialAmount: e.target.value }))}
-              placeholder="0"
-              className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none"
-            />
+            <label className="text-xs text-gray-500 block mb-1">เชื่อมกับบัญชีจริง (ไม่บังคับ)</label>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setPlanForm((f) => ({ ...f, linkedAccountId: '' }))}
+                className={`px-3 py-1.5 rounded-xl text-sm border-2 ${planForm.linkedAccountId === '' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'}`}
+              >
+                กรอกเอง
+              </button>
+              {accounts.filter((a) => !a.archived || a.id === planForm.linkedAccountId).map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => setPlanForm((f) => ({ ...f, linkedAccountId: a.id }))}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm border-2 ${planForm.linkedAccountId === a.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'}`}
+                >
+                  {isUrlIcon(a.icon) ? <img src={a.icon} className="w-4 h-4 rounded object-cover flex-shrink-0" alt="" /> : a.icon} {a.name}
+                </button>
+              ))}
+            </div>
           </div>
+          {planForm.linkedAccountId === '' ? (
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">ยอดเริ่มต้น (฿)</label>
+              <input
+                type="number"
+                value={planForm.initialAmount}
+                onChange={(e) => setPlanForm((f) => ({ ...f, initialAmount: e.target.value }))}
+                placeholder="0"
+                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none"
+              />
+            </div>
+          ) : (
+            <p className="text-xs text-indigo-500 bg-indigo-50 dark:bg-indigo-950 rounded-xl px-3 py-2">
+              🔗 ยอดปัจจุบันจะดึงจากยอดเงินจริงของบัญชีที่เลือกโดยอัตโนมัติ
+            </p>
+          )}
           <input
             type="text"
             value={planForm.note}

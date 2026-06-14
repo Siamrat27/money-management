@@ -174,13 +174,14 @@ grant execute on function public.reset_failed_login(uuid) to authenticated;
 
 -- ── savings_plans ────────────────────────────────────────────────────────────
 create table public.savings_plans (
-  id             text primary key,
-  user_id        uuid references auth.users(id) on delete cascade not null,
-  name           text not null,
-  target_amount  numeric(15,2) not null check (target_amount > 0),
-  target_date    timestamptz not null,
-  initial_amount numeric(15,2) not null default 0,
-  note           text
+  id                text primary key,
+  user_id           uuid references auth.users(id) on delete cascade not null,
+  name              text not null,
+  target_amount     numeric(15,2) not null check (target_amount > 0),
+  target_date       timestamptz not null,
+  initial_amount    numeric(15,2) not null default 0,
+  note              text,
+  linked_account_id text references public.accounts(id) on delete set null
 );
 
 -- ── savings_cash_flows ───────────────────────────────────────────────────────

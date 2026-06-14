@@ -395,6 +395,7 @@ function savingsPlanToRow(p: SavingsPlan) {
     id: p.id, user_id: p.userId, name: p.name,
     target_amount: p.targetAmount, target_date: p.targetDate.toISOString(),
     initial_amount: p.initialAmount, note: p.note ?? null,
+    linked_account_id: p.linkedAccountId ?? null,
   }
 }
 
@@ -403,6 +404,7 @@ function rowToSavingsPlan(r: Record<string, unknown>): SavingsPlan {
     id: r.id as string, userId: r.user_id as string, name: r.name as string,
     targetAmount: r.target_amount as number, targetDate: new Date(r.target_date as string),
     initialAmount: r.initial_amount as number, note: (r.note as string | null) ?? undefined,
+    linkedAccountId: (r.linked_account_id as string | null) ?? undefined,
   }
 }
 

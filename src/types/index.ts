@@ -82,6 +82,7 @@ export interface SavingsPlan {
   targetDate: Date
   initialAmount: number
   note?: string
+  linkedAccountId?: string // if set, current balance comes from this real account
 }
 
 export interface SavingsCashFlow {
