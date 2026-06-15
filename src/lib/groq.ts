@@ -2,6 +2,12 @@ import Groq from 'groq-sdk'
 
 export const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b'
 
+// Curated models always shown in the dropdown (in addition to any fetched live)
+export const KNOWN_GROQ_MODELS = [
+  'openai/gpt-oss-120b',
+  'qwen/qwen3-32b',
+]
+
 function client(apiKey: string) {
   // The key is the user's own, entered in Settings — browser use is intended.
   return new Groq({ apiKey, dangerouslyAllowBrowser: true })

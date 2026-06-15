@@ -4,7 +4,7 @@ import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCc
 import { hasPin, setPin, clearPin, verifyPin } from '../lib/pin'
 import { listApiKeys, createApiKey, deleteApiKey, txEndpoint } from '../lib/apiKeys'
 import type { ApiKeyRow } from '../lib/apiKeys'
-import { listGroqModels, DEFAULT_GROQ_MODEL } from '../lib/groq'
+import { listGroqModels, DEFAULT_GROQ_MODEL, KNOWN_GROQ_MODELS } from '../lib/groq'
 import { Sparkles } from 'lucide-react'
 import IconDisplay from '../components/ui/IconDisplay'
 import { uploadIcon, isUrlIcon } from '../lib/storage'
@@ -547,7 +547,7 @@ export default function Settings() {
               onChange={(e) => saveUserSettings({ groqModel: e.target.value })}
               className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none"
             >
-              {[...new Set([groqModel, DEFAULT_GROQ_MODEL, ...groqModels])].map((m) => (
+              {[...new Set([groqModel, ...KNOWN_GROQ_MODELS, ...groqModels])].map((m) => (
                 <option key={m} value={m}>{m}</option>
               ))}
             </select>
