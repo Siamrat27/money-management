@@ -79,3 +79,39 @@ export async function parseTransactions(
       note: typeof it.note === 'string' && it.note ? it.note : undefined,
     }))
 }
+
+// ─── Chat Q&A over the user's finance summary ────────────────────────────────
+
+export interface ChatMsg { role: 'user' | 'assistant'; content: string }
+
+export async function chatFinance(
+  apiKey: string,
+  model: string,
+  messages: ChatMsg[],
+  summary: string,
+): Promise<string> {
+  const system = `คุณเป็นผู้ช่วยการเงินส่วนตัว ตอบสั้น กระชับ เป็นกันเอง เป็นภาษาไทย
+อ้างอิงจาก "ข้อมูลการเงิน" ด้านล่างเท่านั้น ถ้าข้อมูลไม่พอให้บอกตรงๆ ใส่ตัวเลขเป็นบาท (฿) ให้ชัดเจน
+
+${summary}`
+  const res = await client(apiKey).chat.completions.create({
+    model,
+    temperature: 0.3,
+    messages: [{ role: 'system', content: system }, ...messages],
+  })
+  return res.choices[0]?.message?.content ?? ''
+}
+
+// ─── Monthly advice (for Discord summary) ────────────────────────────────────
+
+export async function generateAdvice(apiKey: string, model: string, summary: string): Promise<string> {
+  const res = await client(apiKey).chat.completions.create({
+    model,
+    temperature: 0.4,
+    messages: [
+      { role: 'system', content: 'คุณเป็นที่ปรึกษาการเงินส่วนตัว สรุปภาพรวมเดือนนี้สั้นๆ แล้วให้คำแนะนำที่ทำได้จริง 2-3 ข้อ เป็นภาษาไทย กระชับ ใช้ bullet (•) ไม่ต้องเกริ่นนำ' },
+      { role: 'user', content: summary },
+    ],
+  })
+  return res.choices[0]?.message?.content ?? ''
+}

@@ -329,6 +329,7 @@ export default function Settings() {
             { icon: PiggyBank, label: 'แผนออม', action: () => setSubPage('savings-planner') },
             { icon: CalendarClock, label: 'ล่วงหน้า', action: () => setSubPage('scheduled-payments') },
             { icon: Target, label: 'งบประมาณ', action: () => setSubPage('budgets') },
+            { icon: Sparkles, label: 'ถามการเงิน', action: () => setSubPage('ai-chat') },
           ].map(({ icon: Icon, label, action }) => (
             <Card key={label} className="p-4 text-center cursor-pointer active:scale-[0.98] transition-transform" onClick={action}>
               <Icon size={24} className="mx-auto mb-1 text-indigo-500" />

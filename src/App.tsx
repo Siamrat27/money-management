@@ -19,6 +19,7 @@ import Transactions from './pages/Transactions'
 import SavingsPlanner from './pages/SavingsPlanner'
 import ScheduledPayments from './pages/ScheduledPayments'
 import Budgets from './pages/Budgets'
+import AiChat from './pages/AiChat'
 import Login from './pages/Login'
 import ResetPassword from './pages/ResetPassword'
 
@@ -86,6 +87,7 @@ export default function App() {
     if (subPage === 'savings-planner') return <SavingsPlanner />
     if (subPage === 'scheduled-payments') return <ScheduledPayments />
     if (subPage === 'budgets') return <Budgets />
+    if (subPage === 'ai-chat') return <AiChat />
 
     switch (page) {
       case 'dashboard': return <Dashboard />

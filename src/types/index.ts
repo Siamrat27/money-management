@@ -119,4 +119,4 @@ export interface ScheduledPayment {
 }
 
 export type Page = 'dashboard' | 'add' | 'calendar' | 'reports' | 'settings'
-export type SubPage = 'transactions' | 'accounts' | 'recurring' | 'savings-planner' | 'scheduled-payments' | 'budgets' | null
+export type SubPage = 'transactions' | 'accounts' | 'recurring' | 'savings-planner' | 'scheduled-payments' | 'budgets' | 'ai-chat' | null
