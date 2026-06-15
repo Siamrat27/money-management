@@ -1,8 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, LOCAL_USER_ID } from '../db/db'
 import { useAuthStore } from '../stores/useAuthStore'
-import { pushAccount, deleteCloudAccount, pushTransaction, pushRecurring, pushPreset, pushScheduledPayment } from '../services/sync'
-import type { Account, Transaction, Recurring, Preset, ScheduledPayment } from '../types'
+import { pushAccount, deleteCloudAccount, pushTransaction, pushRecurring, pushPreset, pushScheduledPayment, pushSavingsPlan } from '../services/sync'
+import type { Account, Transaction, Recurring, Preset, ScheduledPayment, SavingsPlan } from '../types'
 
 function currentUserId(): string {
   return useAuthStore.getState().user?.id ?? LOCAL_USER_ID
@@ -56,6 +56,7 @@ export interface AccountDeleteSnapshot {
   recurring: Recurring[]
   presets: Preset[]
   scheduledPayments: ScheduledPayment[]
+  linkedPlans: SavingsPlan[]       // originals whose linkedAccountId was nulled
 }
 
 // Mirror the cloud's FK cascade locally so local and cloud stay consistent:
@@ -67,35 +68,41 @@ export async function deleteAccount(id: string): Promise<AccountDeleteSnapshot |
   if (!account) return null
   const userId = currentUserId()
 
-  const [transactions, transferTargets, recurring, presets, scheduledPayments] = await Promise.all([
+  const [transactions, transferTargets, recurring, presets, scheduledPayments, linkedPlans] = await Promise.all([
     db.transactions.where('accountId').equals(id).toArray(),
     db.transactions.where('toAccountId').equals(id).toArray(),
     db.recurring.where('accountId').equals(id).toArray(),
     db.presets.where('accountId').equals(id).toArray(),
     db.scheduledPayments.where('userId').equals(userId).filter((p) => p.accountId === id).toArray(),
+    db.savingsPlans.where('userId').equals(userId).filter((p) => p.linkedAccountId === id).toArray(),
   ])
 
-  await db.transaction('rw', [db.accounts, db.transactions, db.recurring, db.presets, db.scheduledPayments], async () => {
+  await db.transaction('rw', [db.accounts, db.transactions, db.recurring, db.presets, db.scheduledPayments, db.savingsPlans], async () => {
     await db.transactions.where('accountId').equals(id).delete()
     await db.transactions.where('toAccountId').equals(id).modify({ toAccountId: undefined })
     await db.recurring.where('accountId').equals(id).delete()
     await db.presets.where('accountId').equals(id).delete()
     await db.scheduledPayments.where('userId').equals(userId).filter((p) => p.accountId === id).delete()
+    // cloud FK is ON DELETE SET NULL for savings_plans.linked_account_id — mirror it
+    await db.savingsPlans.where('userId').equals(userId).filter((p) => p.linkedAccountId === id).modify({ linkedAccountId: undefined })
     await db.accounts.delete(id)
   })
   deleteCloudAccount(id).catch(console.error)
-  return { account, transactions, transferTargets, recurring, presets, scheduledPayments }
+  // push the unlinked plans so cloud + local agree even before next pull
+  for (const p of linkedPlans) pushSavingsPlan({ ...p, linkedAccountId: undefined }).catch(console.error)
+  return { account, transactions, transferTargets, recurring, presets, scheduledPayments, linkedPlans }
 }
 
 // Put a previously deleted account and everything that cascaded back (undo)
 export async function restoreAccount(s: AccountDeleteSnapshot) {
-  await db.transaction('rw', [db.accounts, db.transactions, db.recurring, db.presets, db.scheduledPayments], async () => {
+  await db.transaction('rw', [db.accounts, db.transactions, db.recurring, db.presets, db.scheduledPayments, db.savingsPlans], async () => {
     await db.accounts.put(s.account)
     if (s.transactions.length) await db.transactions.bulkPut(s.transactions)
     if (s.transferTargets.length) await db.transactions.bulkPut(s.transferTargets)
     if (s.recurring.length) await db.recurring.bulkPut(s.recurring)
     if (s.presets.length) await db.presets.bulkPut(s.presets)
     if (s.scheduledPayments.length) await db.scheduledPayments.bulkPut(s.scheduledPayments)
+    if (s.linkedPlans?.length) await db.savingsPlans.bulkPut(s.linkedPlans) // re-link
   })
   // push account first so FK references resolve in the cloud
   try {
@@ -106,6 +113,7 @@ export async function restoreAccount(s: AccountDeleteSnapshot) {
       ...s.recurring.map(pushRecurring),
       ...s.presets.map(pushPreset),
       ...s.scheduledPayments.map(pushScheduledPayment),
+      ...(s.linkedPlans ?? []).map(pushSavingsPlan),
     ])
   } catch (e) {
     console.error('restoreAccount cloud push failed', e)
