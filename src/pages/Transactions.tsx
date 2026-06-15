@@ -1,9 +1,12 @@
 import { useState } from 'react'
-import { Search, Filter, Trash2, Edit2 } from 'lucide-react'
+import { Search, Filter, Trash2, Edit2, Sparkles, X } from 'lucide-react'
 import { useTransactions, deleteTransaction, restoreTransaction } from '../hooks/useTransactions'
 import { useSnackbar } from '../stores/useSnackbar'
 import { useAccounts } from '../hooks/useAccounts'
 import { useTags } from '../hooks/useTags'
+import { useUserSettings } from '../hooks/useSettings'
+import { parseSearchFilter, DEFAULT_GROQ_MODEL } from '../lib/groq'
+import { format } from 'date-fns'
 import { useAppStore } from '../stores/useAppStore'
 import Header from '../components/layout/Header'
 import Card from '../components/ui/Card'
@@ -28,10 +31,25 @@ export default function Transactions() {
   const [showFilter, setShowFilter] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<Transaction | null>(null)
 
+  // AI natural-language search → extra range filters
+  const settings = useUserSettings()
+  const aiEnabled = !!settings?.groqApiKey
+  const [aiQuery, setAiQuery] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiLabel, setAiLabel] = useState<string | null>(null)
+  const [dateFrom, setDateFrom] = useState<string>('')
+  const [dateTo, setDateTo] = useState<string>('')
+  const [minAmt, setMinAmt] = useState<number | null>(null)
+  const [maxAmt, setMaxAmt] = useState<number | null>(null)
+
   const filtered = allTxns.filter((t) => {
     if (filterType !== 'all' && t.type !== filterType) return false
     if (filterAccount !== 'all' && t.accountId !== filterAccount) return false
     if (filterTag !== 'all' && t.tagId !== filterTag) return false
+    if (dateFrom && t.date < new Date(dateFrom + 'T00:00:00')) return false
+    if (dateTo && t.date > new Date(dateTo + 'T23:59:59.999')) return false
+    if (minAmt !== null && t.amount < minAmt) return false
+    if (maxAmt !== null && t.amount > maxAmt) return false
     if (search) {
       const q = search.toLowerCase()
       const note = t.note.toLowerCase()
@@ -40,6 +58,36 @@ export default function Transactions() {
     }
     return true
   })
+
+  function clearAiFilters() {
+    setAiLabel(null); setAiQuery('')
+    setFilterType('all'); setFilterAccount('all'); setFilterTag('all')
+    setSearch(''); setDateFrom(''); setDateTo(''); setMinAmt(null); setMaxAmt(null)
+  }
+
+  async function runAiSearch() {
+    if (!aiQuery.trim() || !settings?.groqApiKey) return
+    setAiBusy(true)
+    try {
+      const f = await parseSearchFilter(
+        settings.groqApiKey, settings.groqModel || DEFAULT_GROQ_MODEL, aiQuery.trim(),
+        { accounts: accounts.map((a) => a.name), categories: tags.map((t) => t.name), today: format(new Date(), 'yyyy-MM-dd') },
+      )
+      // reset then apply
+      setFilterType(f.type ?? 'all')
+      setFilterAccount(f.account ? (accounts.find((a) => a.name.toLowerCase() === f.account!.toLowerCase())?.id ?? 'all') : 'all')
+      setFilterTag(f.category ? (tags.find((t) => t.name.toLowerCase() === f.category!.toLowerCase())?.id ?? 'all') : 'all')
+      setDateFrom(f.fromDate ?? '')
+      setDateTo(f.toDate ?? '')
+      setMinAmt(f.minAmount ?? null)
+      setMaxAmt(f.maxAmount ?? null)
+      setSearch(f.text ?? '')
+      setAiLabel(aiQuery.trim())
+    } catch {
+      setAiLabel('⚠️ ค้นหาด้วย AI ไม่สำเร็จ')
+    }
+    setAiBusy(false)
+  }
 
   function getTag(id?: string) { return tags.find((t) => t.id === id) }
   function getAccount(id?: string) { return accounts.find((a) => a.id === id) }
@@ -66,6 +114,32 @@ export default function Transactions() {
       />
 
       <div className="max-w-lg mx-auto px-4 py-4 space-y-3">
+        {/* AI search */}
+        {aiEnabled && (
+          <div className="flex gap-2">
+            <div className="relative flex-1 min-w-0">
+              <Sparkles size={15} className="absolute left-3 top-3 text-indigo-400" />
+              <input
+                type="text" value={aiQuery}
+                onChange={(e) => setAiQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') runAiSearch() }}
+                placeholder='ถาม AI เช่น "รายจ่ายเกิน 500 เดือนก่อน"'
+                className="w-full pl-9 pr-4 py-2.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900 rounded-xl text-sm outline-none focus:border-indigo-400"
+              />
+            </div>
+            <Button onClick={runAiSearch} disabled={aiBusy || !aiQuery.trim()} className="flex-shrink-0">
+              {aiBusy ? '...' : 'ค้นหา'}
+            </Button>
+          </div>
+        )}
+        {aiLabel && (
+          <div className="flex items-center gap-2 text-xs bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 rounded-xl px-3 py-2">
+            <Sparkles size={13} className="flex-shrink-0" />
+            <span className="flex-1 truncate">กรองด้วย AI: "{aiLabel}"</span>
+            <button onClick={clearAiFilters} className="flex-shrink-0"><X size={14} /></button>
+          </div>
+        )}
+
         {/* Search */}
         <div className="relative">
           <Search size={16} className="absolute left-3 top-3 text-gray-400" />

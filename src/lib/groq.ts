@@ -102,6 +102,62 @@ ${summary}`
   return res.choices[0]?.message?.content ?? ''
 }
 
+// ─── Natural-language search → structured filter ─────────────────────────────
+
+export interface SearchFilter {
+  type?: 'income' | 'expense' | 'transfer'
+  account?: string
+  category?: string
+  fromDate?: string // yyyy-MM-dd
+  toDate?: string   // yyyy-MM-dd
+  minAmount?: number
+  maxAmount?: number
+  text?: string
+}
+
+export async function parseSearchFilter(
+  apiKey: string,
+  model: string,
+  text: string,
+  ctx: { accounts: string[]; categories: string[]; today: string },
+): Promise<SearchFilter> {
+  const system = `แปลงคำค้นหาภาษาไทยเป็นตัวกรองรายการการเงิน ตอบ JSON เท่านั้น
+วันนี้คือ ${ctx.today} (ใช้คำนวณช่วงเวลา เช่น "เดือนก่อน", "สัปดาห์นี้")
+บัญชีที่มี: ${ctx.accounts.join(', ') || '-'}
+หมวดหมู่ที่มี: ${ctx.categories.join(', ') || '-'}
+
+ฟิลด์ (ใส่เฉพาะที่เกี่ยวข้อง เว้นที่เหลือ):
+- type: income | expense | transfer
+- account: ชื่อบัญชีจากรายการ
+- category: ชื่อหมวดจากรายการ
+- fromDate, toDate: รูปแบบ YYYY-MM-DD
+- minAmount, maxAmount: ตัวเลข
+- text: คำค้นในบันทึก (เช่น ชื่อร้าน)
+รูปแบบ: {"type":"","account":"","category":"","fromDate":"","toDate":"","minAmount":0,"maxAmount":0,"text":""}`
+
+  const res = await client(apiKey).chat.completions.create({
+    model, temperature: 0,
+    response_format: { type: 'json_object' },
+    messages: [{ role: 'system', content: system }, { role: 'user', content: text }],
+  })
+  const content = res.choices[0]?.message?.content ?? '{}'
+  try {
+    const p = JSON.parse(content)
+    const clean: SearchFilter = {}
+    if (['income', 'expense', 'transfer'].includes(p.type)) clean.type = p.type
+    if (typeof p.account === 'string' && p.account) clean.account = p.account
+    if (typeof p.category === 'string' && p.category) clean.category = p.category
+    if (typeof p.fromDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.fromDate)) clean.fromDate = p.fromDate
+    if (typeof p.toDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.toDate)) clean.toDate = p.toDate
+    if (Number(p.minAmount) > 0) clean.minAmount = Number(p.minAmount)
+    if (Number(p.maxAmount) > 0) clean.maxAmount = Number(p.maxAmount)
+    if (typeof p.text === 'string' && p.text) clean.text = p.text
+    return clean
+  } catch {
+    return {}
+  }
+}
+
 // ─── Monthly advice (for Discord summary) ────────────────────────────────────
 
 export async function generateAdvice(apiKey: string, model: string, summary: string): Promise<string> {
