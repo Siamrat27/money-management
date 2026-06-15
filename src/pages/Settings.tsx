@@ -320,6 +320,31 @@ export default function Settings() {
       <Header title="ตั้งค่า" />
 
       <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
+        {/* Account — top of page so it's easy to find */}
+        {isSupabaseConfigured && user && (
+          <Card className="p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-11 h-11 rounded-full bg-indigo-500 text-white flex items-center justify-center text-lg font-semibold flex-shrink-0">
+                {(user.email ?? '?').charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-400">เข้าสู่ระบบในชื่อ</p>
+                <p className="text-sm font-semibold truncate">{user.email}</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={handleManualSync} className="flex-1 text-sm">
+                <RefreshCw size={15} className="inline mr-1.5" />
+                ดึงข้อมูล Cloud
+              </Button>
+              <Button variant="danger" onClick={signOut} className="flex-1 text-sm">
+                <LogOut size={15} className="inline mr-1.5" />
+                ออกจากระบบ
+              </Button>
+            </div>
+          </Card>
+        )}
+
         {/* Quick Nav */}
         <div className="grid grid-cols-3 gap-3">
           {[
@@ -430,22 +455,6 @@ export default function Settings() {
           {importStatus === 'success' && <p className="text-sm text-green-500 text-center">นำเข้าสำเร็จ ✓</p>}
           {importStatus === 'error' && <p className="text-sm text-red-500 text-center">เกิดข้อผิดพลาด กรุณาตรวจสอบไฟล์</p>}
         </Card>
-
-        {/* Account / Sync */}
-        {isSupabaseConfigured && user && (
-          <Card className="p-4 space-y-3">
-            <p className="font-semibold">บัญชีผู้ใช้</p>
-            <p className="text-sm text-gray-500 truncate">{user.email}</p>
-            <Button variant="secondary" fullWidth onClick={handleManualSync}>
-              <RefreshCw size={16} className="inline mr-2" />
-              ดึงข้อมูลจาก Cloud
-            </Button>
-            <Button variant="ghost" fullWidth onClick={signOut}>
-              <LogOut size={16} className="inline mr-2" />
-              ออกจากระบบ
-            </Button>
-          </Card>
-        )}
 
         {/* Discord Notifications */}
         <Card className="p-4 space-y-3">
