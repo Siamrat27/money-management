@@ -2,7 +2,7 @@ import { db } from '../db/db'
 import { calcBalance } from '../hooks/useAccounts'
 import { getMonthRange } from '../utils/dateHelpers'
 import { formatAmount } from '../utils/formatters'
-import { subMonths, format } from 'date-fns'
+import { subMonths, format, startOfWeek, startOfDay, startOfMonth } from 'date-fns'
 import { th } from 'date-fns/locale'
 
 // Compact Thai text summary of a user's finances — fed to the LLM as context
@@ -27,6 +27,12 @@ export async function buildFinanceSummary(userId: string): Promise<string> {
   const expense = sumType(thisMonth, 'expense')
   const lastNet = sumType(lastMonth, 'income') - sumType(lastMonth, 'expense')
 
+  // week-to-date (Mon start) and today's spend
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 })
+  const todayStart = startOfDay(now)
+  const weekExpense = allTxns.filter((t) => t.type === 'expense' && t.date >= weekStart).reduce((s, t) => s + t.amount, 0)
+  const todayExpense = allTxns.filter((t) => t.type === 'expense' && t.date >= todayStart).reduce((s, t) => s + t.amount, 0)
+
   const byTag = new Map<string, number>()
   for (const t of thisMonth) if (t.type === 'expense' && t.tagId) byTag.set(t.tagId, (byTag.get(t.tagId) ?? 0) + t.amount)
   const tagName = (id: string) => tags.find((x) => x.id === id)?.name ?? '?'
@@ -48,10 +54,14 @@ export async function buildFinanceSummary(userId: string): Promise<string> {
     return `${p.name} ฿${formatAmount(cur)}/฿${formatAmount(p.targetAmount)}`
   })
 
-  return `ข้อมูลการเงินของผู้ใช้ (ณ ${format(now, 'd MMM yyyy', { locale: th })})
+  return `ข้อมูลการเงินของผู้ใช้ (วันนี้ ${format(now, 'EEEE d MMM yyyy', { locale: th })})
+สัปดาห์นี้เริ่มวันจันทร์ที่ ${format(weekStart, 'd MMM', { locale: th })}
 
 ยอดเงินรวมทุกบัญชี: ฿${formatAmount(total)}
 แต่ละบัญชี: ${accLines.join(', ') || '-'}
+
+ใช้จ่ายวันนี้: ฿${formatAmount(todayExpense)}
+ใช้จ่ายสัปดาห์นี้ (ตั้งแต่จันทร์): ฿${formatAmount(weekExpense)}
 
 เดือนนี้ (${format(now, 'MMMM', { locale: th })}):
 - รายรับ ฿${formatAmount(income)}
@@ -62,4 +72,36 @@ export async function buildFinanceSummary(userId: string): Promise<string> {
 
 งบประมาณรายหมวด: ${budgetLines.join(' | ') || 'ยังไม่ตั้งงบ'}
 แผนออมเงิน: ${planLines.join(' | ') || 'ไม่มี'}`
+}
+
+// Richer context for chat — aggregate summary PLUS a recent transaction list so
+// the LLM can answer any date range (this week / yesterday / a category over a
+// period). Window: from the start of last month, newest first, capped.
+export async function buildChatContext(userId: string): Promise<string> {
+  const summary = await buildFinanceSummary(userId)
+  const [txns, tags, accounts] = await Promise.all([
+    db.transactions.where('userId').equals(userId).toArray(),
+    db.tags.where('userId').equals(userId).toArray(),
+    db.accounts.where('userId').equals(userId).toArray(),
+  ])
+  const from = startOfMonth(subMonths(new Date(), 1))
+  const tagName = (id?: string) => tags.find((t) => t.id === id)?.name ?? ''
+  const accName = (id?: string) => accounts.find((a) => a.id === id)?.name ?? ''
+
+  const recent = txns
+    .filter((t) => t.date >= from)
+    .sort((a, b) => b.date.getTime() - a.date.getTime())
+    .slice(0, 500)
+    .map((t) => {
+      const ty = t.type === 'income' ? 'รับ' : t.type === 'expense' ? 'จ่าย' : 'โอน'
+      const detail = t.type === 'transfer'
+        ? `${accName(t.accountId)}→${accName(t.toAccountId)}`
+        : `${tagName(t.tagId) || 'ไม่ระบุหมวด'} [${accName(t.accountId)}]`
+      return `${format(t.date, 'yyyy-MM-dd')} ${ty} ฿${formatAmount(t.amount)} ${detail}${t.note ? ` (${t.note})` : ''}`
+    })
+
+  return `${summary}
+
+รายการธุรกรรมตั้งแต่ ${format(from, 'd MMM yyyy', { locale: th })} (ใหม่สุดก่อน — ใช้คำนวณช่วงเวลาใดก็ได้ เช่น สัปดาห์นี้ เมื่อวาน 3 วันล่าสุด):
+${recent.join('\n') || '(ไม่มีรายการ)'}`
 }

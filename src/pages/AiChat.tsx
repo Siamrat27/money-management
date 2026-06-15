@@ -6,7 +6,7 @@ import { useUserSettings } from '../hooks/useSettings'
 import { useAppStore } from '../stores/useAppStore'
 import { chatFinance, DEFAULT_GROQ_MODEL } from '../lib/groq'
 import type { ChatMsg } from '../lib/groq'
-import { buildFinanceSummary } from '../lib/financeSummary'
+import { buildChatContext } from '../lib/financeSummary'
 import { isSpeechSupported, startDictation } from '../lib/speech'
 import Header from '../components/layout/Header'
 import Button from '../components/ui/Button'
@@ -41,7 +41,7 @@ export default function AiChat() {
     setMessages(next)
     setBusy(true)
     try {
-      const summary = await buildFinanceSummary(userId)
+      const summary = await buildChatContext(userId)
       const reply = await chatFinance(settings.groqApiKey, settings.groqModel || DEFAULT_GROQ_MODEL, next, summary)
       setMessages((m) => [...m, { role: 'assistant', content: reply || 'ขออภัย ตอบไม่ได้ตอนนี้' }])
     } catch {
