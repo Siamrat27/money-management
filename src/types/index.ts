@@ -79,6 +79,8 @@ export interface UserSettings {
   allowanceResetWeekday?: number // 0=Sun..6=Sat — day the rollover period restarts
   groqApiKey?: string          // user's own Groq API key for AI quick-add
   groqModel?: string           // selected Groq model id
+  monthlyAdvice?: boolean      // AI monthly summary + advice to Discord
+  lastMonthlyAdvice?: string   // yyyy-MM key of the last monthly advice sent
 }
 
 export interface SavingsPlan {

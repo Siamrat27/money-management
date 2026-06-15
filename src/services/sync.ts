@@ -343,6 +343,8 @@ function settingsToRow(s: UserSettings) {
     allowance_reset_weekday: s.allowanceResetWeekday ?? null,
     groq_api_key: s.groqApiKey ?? null,
     groq_model: s.groqModel ?? null,
+    monthly_advice: s.monthlyAdvice ?? false,
+    last_monthly_advice: s.lastMonthlyAdvice ?? null,
   }
 }
 
@@ -359,6 +361,8 @@ function rowToSettings(r: Record<string, unknown>): UserSettings {
     allowanceResetWeekday: (r.allowance_reset_weekday as number | null) ?? undefined,
     groqApiKey: (r.groq_api_key as string | null) ?? undefined,
     groqModel: (r.groq_model as string | null) ?? undefined,
+    monthlyAdvice: (r.monthly_advice as boolean | null) ?? undefined,
+    lastMonthlyAdvice: (r.last_monthly_advice as string | null) ?? undefined,
   }
 }
 

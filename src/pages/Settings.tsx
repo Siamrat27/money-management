@@ -489,6 +489,7 @@ export default function Settings() {
               {([
                 { key: 'dailySummary' as const, label: 'สรุปประจำวัน', desc: 'ส่งสรุปของเมื่อวานเมื่อเปิดแอปครั้งแรกของวัน' },
                 { key: 'weeklySummary' as const, label: 'สรุปประจำสัปดาห์', desc: 'ส่งสรุปสัปดาห์ก่อนเมื่อเปิดแอปครั้งแรกของสัปดาห์' },
+                { key: 'monthlyAdvice' as const, label: 'สรุป + คำแนะนำรายเดือน (AI)', desc: 'ใช้ Groq สรุปภาพรวม + แนะนำ ส่งเมื่อขึ้นเดือนใหม่ (ต้องตั้ง Groq key)' },
               ]).map(({ key, label, desc }) => {
                 const enabled = !!userSettings?.[key]
                 return (

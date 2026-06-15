@@ -69,7 +69,9 @@ create table public.user_settings (
   allowance_rollover      boolean not null default false,
   allowance_reset_weekday int default null,
   groq_api_key            text default null,
-  groq_model              text default null
+  groq_model              text default null,
+  monthly_advice          boolean not null default false,
+  last_monthly_advice     text default null
 );
 
 -- ── Row Level Security ───────────────────────────────────────────────────────

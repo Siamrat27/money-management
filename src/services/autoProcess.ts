@@ -5,7 +5,9 @@ import { executeScheduledPayment } from '../hooks/useScheduledPayments'
 import { updateRecurring } from '../hooks/useRecurring'
 import { saveUserSettings } from '../hooks/useSettings'
 import { pushScheduledPayment } from './sync'
-import { notifyScheduledPaymentUpcoming, sendDailySummary, sendWeeklySummary } from '../lib/discord'
+import { notifyScheduledPaymentUpcoming, sendDailySummary, sendWeeklySummary, sendMonthlyAdvice } from '../lib/discord'
+import { buildFinanceSummary } from '../lib/financeSummary'
+import { generateAdvice, DEFAULT_GROQ_MODEL } from '../lib/groq'
 import { nextDueDate, startOfDay } from '../utils/dateHelpers'
 
 export interface AutoProcessResult {
@@ -64,6 +66,21 @@ async function sendSummaries(userId: string): Promise<void> {
         if (ok) await saveUserSettings({ lastWeeklySummary: weekKey })
       } catch (e) {
         console.error('autoProcess: weekly summary failed', e)
+      }
+    }
+  }
+
+  // AI monthly summary + advice (needs both a webhook and a Groq key)
+  if (settings.monthlyAdvice && settings.groqApiKey) {
+    const monthKey = format(now, 'yyyy-MM')
+    if (settings.lastMonthlyAdvice !== monthKey) {
+      try {
+        const summary = await buildFinanceSummary(userId)
+        const advice = await generateAdvice(settings.groqApiKey, settings.groqModel || DEFAULT_GROQ_MODEL, summary)
+        const ok = await sendMonthlyAdvice(userId, format(now, 'MMMM yyyy'), advice)
+        if (ok) await saveUserSettings({ lastMonthlyAdvice: monthKey })
+      } catch (e) {
+        console.error('autoProcess: monthly advice failed', e)
       }
     }
   }

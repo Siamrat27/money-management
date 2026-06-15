@@ -276,6 +276,20 @@ export async function sendWeeklySummary(userId: string, weekStart: Date, weekEnd
   return true
 }
 
+// AI-generated monthly summary + advice
+export async function sendMonthlyAdvice(userId: string, monthLabel: string, advice: string): Promise<boolean> {
+  const url = await getWebhookUrl()
+  if (!url || !advice.trim()) return false
+  await postToDiscord(url, [{
+    title: `🤖 สรุป + คำแนะนำการเงิน — ${monthLabel}`,
+    color: 0x8b5cf6,
+    fields: [{ name: '​', value: advice.slice(0, 1024), inline: false }],
+    footer: { text: 'PocketFlow · AI' },
+    timestamp: new Date().toISOString(),
+  }])
+  return true
+}
+
 export async function notifyScheduledPaymentExecuted(payment: ScheduledPayment) {
   const url = await getWebhookUrl()
   if (!url) return
