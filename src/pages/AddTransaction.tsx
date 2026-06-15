@@ -22,7 +22,8 @@ import { evaluateExpression } from '../utils/calc'
 import { useUserSettings } from '../hooks/useSettings'
 import { parseTransactions, DEFAULT_GROQ_MODEL } from '../lib/groq'
 import type { ParsedTxn } from '../lib/groq'
-import { Sparkles } from 'lucide-react'
+import { isSpeechSupported, startDictation } from '../lib/speech'
+import { Sparkles, Mic } from 'lucide-react'
 
 const FREQUENCIES: Frequency[] = ['daily', 'weekly', 'monthly', 'yearly']
 
@@ -71,6 +72,21 @@ export default function AddTransaction() {
   const [aiBusy, setAiBusy] = useState(false)
   const [aiError, setAiError] = useState('')
   const [aiResults, setAiResults] = useState<ParsedTxn[] | null>(null)
+  const [listening, setListening] = useState(false)
+  const stopDictationRef = useRef<(() => void) | null>(null)
+
+  function toggleDictation() {
+    if (listening) { stopDictationRef.current?.(); return }
+    setAiError('')
+    setListening(true)
+    stopDictationRef.current = startDictation(
+      (text) => { setAiText(text); handleAiParse(text) },
+      {
+        onEnd: () => { setListening(false); stopDictationRef.current = null },
+        onError: (err) => { setListening(false); if (err !== 'no-speech' && err !== 'aborted') setAiError('ฟังเสียงไม่ได้ — อนุญาตไมโครโฟนหรือลองใหม่') },
+      },
+    )
+  }
 
   function resolveAccount(name?: string) {
     if (!name) return undefined
@@ -83,8 +99,8 @@ export default function AddTransaction() {
     return tags.find((t) => t.id === name) ?? tags.find((t) => t.name.toLowerCase() === s)
   }
 
-  async function handleAiParse() {
-    if (!aiText.trim() || !userSettings?.groqApiKey) return
+  async function handleAiParse(text = aiText) {
+    if (!text.trim() || !userSettings?.groqApiKey) return
     setAiBusy(true)
     setAiError('')
     setAiResults(null)
@@ -92,7 +108,7 @@ export default function AddTransaction() {
       const items = await parseTransactions(
         userSettings.groqApiKey,
         userSettings.groqModel || DEFAULT_GROQ_MODEL,
-        aiText.trim(),
+        text.trim(),
         {
           accounts: accounts.filter((a) => !a.archived).map((a) => a.name),
           categories: tags.map((t) => t.name),
@@ -299,10 +315,19 @@ export default function AddTransaction() {
                 type="text" value={aiText}
                 onChange={(e) => { setAiText(e.target.value); setAiError('') }}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleAiParse() }}
-                placeholder='เช่น "จ่ายค่าอาหาร 80 เงินสด"'
+                placeholder={listening ? 'กำลังฟัง... พูดได้เลย' : 'เช่น "จ่ายค่าอาหาร 80 เงินสด"'}
                 className="flex-1 min-w-0 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none focus:border-indigo-400"
               />
-              <Button onClick={handleAiParse} disabled={aiBusy || !aiText.trim()} className="flex-shrink-0">
+              {isSpeechSupported() && (
+                <button
+                  onClick={toggleDictation}
+                  className={`flex-shrink-0 w-10 rounded-xl flex items-center justify-center ${listening ? 'bg-red-500 text-white animate-pulse' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-indigo-500'}`}
+                  title="พูดแล้วบันทึก"
+                >
+                  <Mic size={18} />
+                </button>
+              )}
+              <Button onClick={() => handleAiParse()} disabled={aiBusy || !aiText.trim()} className="flex-shrink-0">
                 {aiBusy ? '...' : 'แปลง'}
               </Button>
             </div>
