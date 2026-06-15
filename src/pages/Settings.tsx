@@ -4,6 +4,8 @@ import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCc
 import { hasPin, setPin, clearPin, verifyPin } from '../lib/pin'
 import { listApiKeys, createApiKey, deleteApiKey, txEndpoint } from '../lib/apiKeys'
 import type { ApiKeyRow } from '../lib/apiKeys'
+import { listGroqModels, DEFAULT_GROQ_MODEL } from '../lib/groq'
+import { Sparkles } from 'lucide-react'
 import IconDisplay from '../components/ui/IconDisplay'
 import { uploadIcon, isUrlIcon } from '../lib/storage'
 import { useTags, addTag, updateTag, deleteTag, restoreTag } from '../hooks/useTags'
@@ -185,6 +187,34 @@ export default function Settings() {
   }
 
   const [clearConfirm, setClearConfirm] = useState(false)
+
+  // Groq AI quick-add config
+  const [groqKeyInput, setGroqKeyInput] = useState('')
+  const [groqStatus, setGroqStatus] = useState<'idle' | 'saving' | 'saved' | 'loading' | 'ok' | 'fail'>('idle')
+  const [groqModels, setGroqModels] = useState<string[]>([])
+  const groqModel = userSettings?.groqModel || DEFAULT_GROQ_MODEL
+  useEffect(() => { setGroqKeyInput(userSettings?.groqApiKey ?? '') }, [userSettings?.groqApiKey])
+
+  async function saveGroqKey() {
+    setGroqStatus('saving')
+    await saveUserSettings({ groqApiKey: groqKeyInput.trim() || undefined })
+    setGroqStatus('saved')
+    setTimeout(() => setGroqStatus('idle'), 2000)
+  }
+
+  async function loadGroqModels() {
+    if (!groqKeyInput.trim()) return
+    setGroqStatus('loading')
+    try {
+      const models = await listGroqModels(groqKeyInput.trim())
+      setGroqModels(models)
+      setGroqStatus('ok')
+      setTimeout(() => setGroqStatus('idle'), 2000)
+    } catch {
+      setGroqStatus('fail')
+      setTimeout(() => setGroqStatus('idle'), 3000)
+    }
+  }
 
   // API keys (external pay/receive/transfer)
   const apiAccounts = accounts.filter((a) => !a.archived)
@@ -481,6 +511,48 @@ export default function Settings() {
             <p className="text-xs font-medium text-gray-500">วิธีสร้าง Webhook URL:</p>
             <p className="text-xs text-gray-400">Discord → Channel Settings → Integrations → Webhooks → New Webhook → Copy URL</p>
           </div>
+        </Card>
+
+        {/* Groq AI quick-add */}
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles size={18} className="text-indigo-500" />
+            <p className="font-semibold">ผู้ช่วย AI กรอกรายการ (Groq)</p>
+          </div>
+          <p className="text-xs text-gray-400">
+            ใส่ Groq API key ของคุณ แล้วในหน้าเพิ่มรายการจะพิมพ์ภาษาคนได้ เช่น "จ่ายค่าอาหาร 80 เงินสด, ได้เงินเดือน 30000"
+          </p>
+          <input
+            type="password" value={groqKeyInput}
+            onChange={(e) => { setGroqKeyInput(e.target.value); setGroqStatus('idle') }}
+            placeholder="gsk_..."
+            className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none focus:border-indigo-400 font-mono"
+          />
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={loadGroqModels} className="flex-1 text-sm">
+              {groqStatus === 'loading' ? '⏳ กำลังโหลด...' : '🔄 โหลดโมเดล'}
+            </Button>
+            <Button onClick={saveGroqKey} className="flex-1 text-sm">
+              {groqStatus === 'saving' ? 'กำลังบันทึก...' : 'บันทึก'}
+            </Button>
+          </div>
+          {groqStatus === 'saved' && <p className="text-xs text-green-500 text-center">✓ บันทึกแล้ว</p>}
+          {groqStatus === 'ok' && <p className="text-xs text-green-500 text-center">✅ โหลดโมเดลสำเร็จ ({groqModels.length})</p>}
+          {groqStatus === 'fail' && <p className="text-xs text-red-500 text-center">❌ key ไม่ถูกต้องหรือเชื่อมต่อไม่ได้</p>}
+
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">โมเดล</label>
+            <select
+              value={groqModel}
+              onChange={(e) => saveUserSettings({ groqModel: e.target.value })}
+              className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none"
+            >
+              {[...new Set([groqModel, DEFAULT_GROQ_MODEL, ...groqModels])].map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+          <p className="text-xs text-gray-400">รับ API key ฟรีได้ที่ console.groq.com — key จะถูกเก็บแยกตามบัญชีของคุณ</p>
         </Card>
 
         {/* External API */}

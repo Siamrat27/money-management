@@ -77,6 +77,8 @@ export interface UserSettings {
   dailyAllowance?: number      // overall daily spending allowance (total)
   allowanceRollover?: boolean  // unused allowance carries forward within the period
   allowanceResetWeekday?: number // 0=Sun..6=Sat — day the rollover period restarts
+  groqApiKey?: string          // user's own Groq API key for AI quick-add
+  groqModel?: string           // selected Groq model id
 }
 
 export interface SavingsPlan {

@@ -341,6 +341,8 @@ function settingsToRow(s: UserSettings) {
     daily_allowance: s.dailyAllowance ?? null,
     allowance_rollover: s.allowanceRollover ?? false,
     allowance_reset_weekday: s.allowanceResetWeekday ?? null,
+    groq_api_key: s.groqApiKey ?? null,
+    groq_model: s.groqModel ?? null,
   }
 }
 
@@ -355,6 +357,8 @@ function rowToSettings(r: Record<string, unknown>): UserSettings {
     dailyAllowance: (r.daily_allowance as number | null) ?? undefined,
     allowanceRollover: (r.allowance_rollover as boolean | null) ?? undefined,
     allowanceResetWeekday: (r.allowance_reset_weekday as number | null) ?? undefined,
+    groqApiKey: (r.groq_api_key as string | null) ?? undefined,
+    groqModel: (r.groq_model as string | null) ?? undefined,
   }
 }
 

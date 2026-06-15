@@ -19,6 +19,10 @@ import { isUrlIcon } from '../lib/storage'
 import type { TransactionType, Frequency } from '../types'
 import { nextDueDate, frequencyLabel } from '../utils/dateHelpers'
 import { evaluateExpression } from '../utils/calc'
+import { useUserSettings } from '../hooks/useSettings'
+import { parseTransactions, DEFAULT_GROQ_MODEL } from '../lib/groq'
+import type { ParsedTxn } from '../lib/groq'
+import { Sparkles } from 'lucide-react'
 
 const FREQUENCIES: Frequency[] = ['daily', 'weekly', 'monthly', 'yearly']
 
@@ -59,6 +63,68 @@ export default function AddTransaction() {
     { tagId: '', amount: '' },
   ])
   const splitTotal = splitLines.reduce((s, l) => s + (evaluateExpression(l.amount) || 0), 0)
+
+  // AI quick-add (Groq)
+  const userSettings = useUserSettings()
+  const aiEnabled = !!userSettings?.groqApiKey
+  const [aiText, setAiText] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [aiResults, setAiResults] = useState<ParsedTxn[] | null>(null)
+
+  function resolveAccount(name?: string) {
+    if (!name) return undefined
+    const s = name.trim().toLowerCase()
+    return accounts.find((a) => a.id === name) ?? accounts.find((a) => a.name.toLowerCase() === s)
+  }
+  function resolveTag(name?: string) {
+    if (!name) return undefined
+    const s = name.trim().toLowerCase()
+    return tags.find((t) => t.id === name) ?? tags.find((t) => t.name.toLowerCase() === s)
+  }
+
+  async function handleAiParse() {
+    if (!aiText.trim() || !userSettings?.groqApiKey) return
+    setAiBusy(true)
+    setAiError('')
+    setAiResults(null)
+    try {
+      const items = await parseTransactions(
+        userSettings.groqApiKey,
+        userSettings.groqModel || DEFAULT_GROQ_MODEL,
+        aiText.trim(),
+        {
+          accounts: accounts.filter((a) => !a.archived).map((a) => a.name),
+          categories: tags.map((t) => t.name),
+        },
+      )
+      if (items.length === 0) setAiError('แปลงไม่สำเร็จ ลองพิมพ์ใหม่ให้ชัดขึ้น')
+      else setAiResults(items)
+    } catch (e) {
+      setAiError('เชื่อมต่อ Groq ไม่ได้ — ตรวจ API key ในตั้งค่า')
+      console.error(e)
+    }
+    setAiBusy(false)
+  }
+
+  async function handleAiConfirm() {
+    if (!aiResults) return
+    const now = new Date()
+    for (const it of aiResults) {
+      const acc = resolveAccount(it.account)
+      if (!acc) continue
+      if (it.action === 'transfer') {
+        const to = resolveAccount(it.toAccount)
+        if (!to || to.id === acc.id) continue
+        await addTransaction({ type: 'transfer', amount: it.amount, accountId: acc.id, toAccountId: to.id, note: it.note ?? '', date: now, isRecurring: false })
+      } else {
+        await addTransaction({ type: it.action, amount: it.amount, accountId: acc.id, tagId: resolveTag(it.category)?.id, note: it.note ?? '', date: now, isRecurring: false })
+      }
+    }
+    setAiText('')
+    setAiResults(null)
+    setPage('dashboard')
+  }
 
   useEffect(() => {
     if (accounts.length > 0 && accountId === null) {
@@ -221,6 +287,59 @@ export default function AddTransaction() {
       <Header title={editTransactionId ? 'แก้ไขรายการ' : 'เพิ่มรายการ'} />
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 flex-1 flex flex-col gap-4">
+        {/* AI quick-add (Groq) */}
+        {aiEnabled && !editTransactionId && (
+          <div className="bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900 rounded-2xl p-3 space-y-2">
+            <div className="flex items-center gap-1.5 text-indigo-500">
+              <Sparkles size={15} />
+              <span className="text-xs font-semibold">พิมพ์ภาษาคน — AI กรอกให้</span>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text" value={aiText}
+                onChange={(e) => { setAiText(e.target.value); setAiError('') }}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAiParse() }}
+                placeholder='เช่น "จ่ายค่าอาหาร 80 เงินสด"'
+                className="flex-1 min-w-0 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none focus:border-indigo-400"
+              />
+              <Button onClick={handleAiParse} disabled={aiBusy || !aiText.trim()} className="flex-shrink-0">
+                {aiBusy ? '...' : 'แปลง'}
+              </Button>
+            </div>
+            {aiError && <p className="text-xs text-red-500">{aiError}</p>}
+            {aiResults && (
+              <div className="space-y-1.5">
+                {aiResults.map((it, i) => {
+                  const acc = resolveAccount(it.account)
+                  const to = it.action === 'transfer' ? resolveAccount(it.toAccount) : undefined
+                  const tag = resolveTag(it.category)
+                  const color = it.action === 'income' ? 'text-green-500' : it.action === 'transfer' ? 'text-blue-500' : 'text-red-500'
+                  const sign = it.action === 'income' ? '+' : it.action === 'transfer' ? '' : '-'
+                  const bad = !acc || (it.action === 'transfer' && !to)
+                  return (
+                    <div key={i} className="flex items-center gap-2 text-sm bg-white dark:bg-gray-800 rounded-xl px-3 py-2">
+                      <span className={`font-bold ${color}`}>{sign}฿{formatAmount(it.amount)}</span>
+                      <span className="text-xs text-gray-500 flex-1 truncate">
+                        {it.action === 'transfer'
+                          ? `${acc?.name ?? '?'} → ${to?.name ?? '?'}`
+                          : `${acc?.name ?? '?'}${tag ? ` · ${tag.name}` : ''}`}
+                        {it.note ? ` · ${it.note}` : ''}
+                      </span>
+                      {bad && <span className="text-[10px] text-red-500 flex-shrink-0">ไม่พบบัญชี</span>}
+                    </div>
+                  )
+                })}
+                <div className="flex gap-2 pt-1">
+                  <Button variant="secondary" onClick={() => setAiResults(null)} className="text-sm">ยกเลิก</Button>
+                  <Button fullWidth onClick={handleAiConfirm} className="text-sm">
+                    บันทึก {aiResults.filter((it) => resolveAccount(it.account)).length} รายการ
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Preset Strip */}
         {presets.length > 0 && (
           <div>
