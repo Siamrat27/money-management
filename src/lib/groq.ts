@@ -34,17 +34,19 @@ export async function parseTransactions(
   apiKey: string,
   model: string,
   text: string,
-  ctx: { accounts: string[]; categories: string[] },
+  ctx: { accounts: string[]; expenseCategories: string[]; incomeCategories: string[] },
 ): Promise<ParsedTxn[]> {
   const system = `คุณเป็นตัวช่วยแปลงข้อความภาษาไทยเป็นรายการการเงิน ตอบเป็น JSON เท่านั้น
 
 บัญชีที่มี: ${ctx.accounts.join(', ') || '(ไม่มี)'}
-หมวดหมู่ที่มี: ${ctx.categories.join(', ') || '(ไม่มี)'}
+หมวดหมู่สำหรับรายจ่าย (expense): ${ctx.expenseCategories.join(', ') || '(ไม่มี)'}
+หมวดหมู่สำหรับรายรับ (income): ${ctx.incomeCategories.join(', ') || '(ไม่มี)'}
 
 กฎ:
 - action: "income" (รับ/ได้เงิน), "expense" (จ่าย/ซื้อ/เสีย), "transfer" (โอน/ย้ายเงินระหว่างบัญชี)
 - amount: ตัวเลขมากกว่า 0
-- account, toAccount, category: ต้องเลือกชื่อจากรายการด้านบนเท่านั้น (จับคู่ที่ใกล้ที่สุด) ถ้าไม่แน่ใจให้เว้นว่าง
+- account, toAccount: ต้องเลือกชื่อจากรายการบัญชีด้านบนเท่านั้น (จับคู่ที่ใกล้ที่สุด)
+- category: ต้องเลือกให้ตรงประเภทของ action — ถ้า action เป็น expense ให้เลือกจาก "หมวดสำหรับรายจ่าย" เท่านั้น, ถ้าเป็น income ให้เลือกจาก "หมวดสำหรับรายรับ" เท่านั้น, ถ้าเป็น transfer ห้ามใส่ category. ถ้าไม่มีหมวดที่ตรงให้เว้นว่าง ห้ามใช้หมวดข้ามประเภทเด็ดขาด
 - transfer ต้องมีทั้ง account (ต้นทาง) และ toAccount (ปลายทาง)
 - รองรับหลายรายการในประโยคเดียว
 - note: รายละเอียดเพิ่มเติมถ้ามี

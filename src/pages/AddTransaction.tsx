@@ -98,6 +98,15 @@ export default function AddTransaction() {
     const s = name.trim().toLowerCase()
     return tags.find((t) => t.id === name) ?? tags.find((t) => t.name.toLowerCase() === s)
   }
+  // Only accept a category whose type matches the action (guard against the LLM
+  // picking a cross-type category)
+  function resolveTagForAction(name: string | undefined, action: ParsedTxn['action']) {
+    const t = resolveTag(name)
+    if (!t || action === 'transfer') return undefined
+    if (action === 'income' && t.type === 'expense') return undefined
+    if (action === 'expense' && t.type === 'income') return undefined
+    return t
+  }
 
   async function handleAiParse(text = aiText) {
     if (!text.trim() || !userSettings?.groqApiKey) return
@@ -111,7 +120,8 @@ export default function AddTransaction() {
         text.trim(),
         {
           accounts: accounts.filter((a) => !a.archived).map((a) => a.name),
-          categories: tags.map((t) => t.name),
+          expenseCategories: tags.filter((t) => t.type !== 'income').map((t) => t.name),
+          incomeCategories: tags.filter((t) => t.type !== 'expense').map((t) => t.name),
         },
       )
       if (items.length === 0) setAiError('แปลงไม่สำเร็จ ลองพิมพ์ใหม่ให้ชัดขึ้น')
@@ -134,7 +144,7 @@ export default function AddTransaction() {
         if (!to || to.id === acc.id) continue
         await addTransaction({ type: 'transfer', amount: it.amount, accountId: acc.id, toAccountId: to.id, note: it.note ?? '', date: now, isRecurring: false })
       } else {
-        await addTransaction({ type: it.action, amount: it.amount, accountId: acc.id, tagId: resolveTag(it.category)?.id, note: it.note ?? '', date: now, isRecurring: false })
+        await addTransaction({ type: it.action, amount: it.amount, accountId: acc.id, tagId: resolveTagForAction(it.category, it.action)?.id, note: it.note ?? '', date: now, isRecurring: false })
       }
     }
     setAiText('')
@@ -337,7 +347,7 @@ export default function AddTransaction() {
                 {aiResults.map((it, i) => {
                   const acc = resolveAccount(it.account)
                   const to = it.action === 'transfer' ? resolveAccount(it.toAccount) : undefined
-                  const tag = resolveTag(it.category)
+                  const tag = resolveTagForAction(it.category, it.action)
                   const color = it.action === 'income' ? 'text-green-500' : it.action === 'transfer' ? 'text-blue-500' : 'text-red-500'
                   const sign = it.action === 'income' ? '+' : it.action === 'transfer' ? '' : '-'
                   const bad = !acc || (it.action === 'transfer' && !to)
