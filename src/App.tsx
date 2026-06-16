@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { hasPin } from './lib/pin'
+import { shouldLockNow, markActive } from './lib/pin'
 import PinLock from './components/PinLock'
 import { useAppStore } from './stores/useAppStore'
 import { useAuthStore } from './stores/useAuthStore'
@@ -23,27 +23,30 @@ import AiChat from './pages/AiChat'
 import Login from './pages/Login'
 import ResetPassword from './pages/ResetPassword'
 
-const LOCK_AFTER_HIDDEN_MS = 5 * 60 * 1000
-
 export default function App() {
   const { page, subPage } = useAppStore()
   const { user, loading, setSyncing, setSyncError, recoveryMode } = useAuthStore()
   const lastSyncedUser = useRef<string | null>(null)
 
-  // PIN lock: locked on cold start if a PIN is set; re-locks after the app
-  // has been hidden (background/another tab) for 5+ minutes
-  const [locked, setLocked] = useState(() => hasPin())
-  const hiddenAt = useRef<number | null>(null)
+  // PIN lock: lock only after a period of inactivity — a quick page refresh
+  // within the window stays unlocked. While open & unlocked we keep a
+  // "last active" timestamp fresh so reloads don't re-prompt.
+  const [locked, setLocked] = useState(() => shouldLockNow())
+  const lockedRef = useRef(locked)
+  lockedRef.current = locked
   useEffect(() => {
+    function tick() {
+      if (document.visibilityState === 'visible' && !lockedRef.current) markActive()
+    }
+    tick()
+    const id = window.setInterval(tick, 30_000)
     function onVisibility() {
-      if (document.hidden) {
-        hiddenAt.current = Date.now()
-      } else if (hiddenAt.current && hasPin() && Date.now() - hiddenAt.current >= LOCK_AFTER_HIDDEN_MS) {
-        setLocked(true)
-      }
+      if (document.visibilityState !== 'visible') return
+      if (shouldLockNow()) setLocked(true)
+      else markActive()
     }
     document.addEventListener('visibilitychange', onVisibility)
-    return () => document.removeEventListener('visibilitychange', onVisibility)
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisibility) }
   }, [])
 
   // Pull cloud data whenever the logged-in user changes
@@ -59,7 +62,7 @@ export default function App() {
   }, [user?.id])
 
   if (locked) {
-    return <PinLock onUnlock={() => setLocked(false)} />
+    return <PinLock onUnlock={() => { markActive(); setLocked(false) }} />
   }
 
   if (loading) {
