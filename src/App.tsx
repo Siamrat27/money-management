@@ -49,6 +49,12 @@ export default function App() {
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisibility) }
   }, [])
 
+  // Scroll back to the top whenever the page or subpage changes (SPA has no
+  // router, so the scroll position would otherwise persist across screens)
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [page, subPage])
+
   // Pull cloud data whenever the logged-in user changes
   useEffect(() => {
     if (!user || !isSupabaseConfigured) return
