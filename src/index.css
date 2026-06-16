@@ -28,4 +28,31 @@
       transition-colors select-none cursor-pointer h-14;
     touch-action: manipulation;
   }
+
+  /* Entrance animations — disabled under reduced-motion */
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes popIn {
+      0%   { opacity: 0; transform: scale(0.85); }
+      60%  { opacity: 1; transform: scale(1.04); }
+      100% { transform: scale(1); }
+    }
+    .animate-fade-up { animation: fadeInUp 0.42s cubic-bezier(0.22, 1, 0.36, 1) both; }
+    .animate-pop     { animation: popIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+    /* Stagger direct children's entrance */
+    .stagger > * { animation: fadeInUp 0.42s cubic-bezier(0.22, 1, 0.36, 1) both; }
+    .stagger > *:nth-child(1) { animation-delay: 0.02s; }
+    .stagger > *:nth-child(2) { animation-delay: 0.06s; }
+    .stagger > *:nth-child(3) { animation-delay: 0.10s; }
+    .stagger > *:nth-child(4) { animation-delay: 0.14s; }
+    .stagger > *:nth-child(5) { animation-delay: 0.18s; }
+    .stagger > *:nth-child(6) { animation-delay: 0.22s; }
+    .stagger > *:nth-child(7) { animation-delay: 0.26s; }
+    .stagger > *:nth-child(8) { animation-delay: 0.30s; }
+    .stagger > *:nth-child(n+9) { animation-delay: 0.34s; }
+  }
 }

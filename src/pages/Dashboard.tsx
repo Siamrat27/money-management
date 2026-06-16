@@ -17,6 +17,7 @@ import { isSupabaseConfigured } from '../lib/supabase'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import IconDisplay from '../components/ui/IconDisplay'
+import CountUpAmount from '../components/ui/CountUpAmount'
 import Header from '../components/layout/Header'
 import { formatCurrency, formatAmount } from '../utils/formatters'
 import { formatDate, formatDateShort, getMonthRange, getYearRange, getDayRange, today, nextDueDate, startOfDay } from '../utils/dateHelpers'
@@ -303,7 +304,7 @@ export default function Dashboard() {
         }
       />
 
-      <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
+      <div className="max-w-lg mx-auto px-4 py-4 space-y-4 stagger">
         {/* Auto-process result banner */}
         {autoResult && (autoResult.scheduledCount + autoResult.recurringCount) > 0 && (
           <div className="flex items-center justify-between bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-2xl px-4 py-3">
@@ -327,7 +328,7 @@ export default function Dashboard() {
         {/* Total Balance */}
         <Card className="p-5 bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
           <p className="text-indigo-200 text-sm font-medium">ยอดรวมทั้งหมด</p>
-          <p className="text-4xl font-bold mt-1">฿{formatAmount(totalBalance)}</p>
+          <p className="text-4xl font-bold mt-1">฿<CountUpAmount value={totalBalance} /></p>
           <div className="mt-3 flex gap-3 flex-wrap">
             {activeAccounts.map((acc) => (
               <div key={acc.id} className="flex items-center gap-1.5">
@@ -365,14 +366,14 @@ export default function Dashboard() {
               <ArrowUpCircle size={18} />
               <span className="text-sm font-medium">รายรับ</span>
             </div>
-            <p className="text-xl font-bold text-green-500">฿{formatAmount(summary.income)}</p>
+            <p className="text-xl font-bold text-green-500">฿<CountUpAmount value={summary.income} /></p>
           </Card>
           <Card className="p-4">
             <div className="flex items-center gap-2 text-red-500 mb-1">
               <ArrowDownCircle size={18} />
               <span className="text-sm font-medium">รายจ่าย</span>
             </div>
-            <p className="text-xl font-bold text-red-500">฿{formatAmount(summary.expense)}</p>
+            <p className="text-xl font-bold text-red-500">฿<CountUpAmount value={summary.expense} /></p>
           </Card>
         </div>
 
@@ -426,7 +427,7 @@ export default function Dashboard() {
             )}
           </div>
           <p className={`text-2xl font-bold mb-2 ${savings.thisMonth >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-            {savings.thisMonth >= 0 ? '+' : ''}฿{formatAmount(Math.abs(savings.thisMonth))}
+            {savings.thisMonth >= 0 ? '+' : '-'}฿<CountUpAmount value={Math.abs(savings.thisMonth)} />
           </p>
           {savings.trend.length > 0 && (
             <ResponsiveContainer width="100%" height={64}>

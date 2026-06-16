@@ -10,6 +10,7 @@ import Card from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import Button from '../components/ui/Button'
 import IconDisplay from '../components/ui/IconDisplay'
+import CountUpAmount from '../components/ui/CountUpAmount'
 import { formatAmount } from '../utils/formatters'
 import { getMonthRange } from '../utils/dateHelpers'
 import { WEEKDAY_LABELS } from '../utils/allowance'
@@ -96,7 +97,7 @@ export default function Budgets() {
     <div className="min-h-screen pb-nav">
       <Header title="งบประมาณ" showBack />
 
-      <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
+      <div className="max-w-lg mx-auto px-4 py-4 space-y-4 stagger">
         <p className="text-xs text-gray-400 text-center">{format(now, 'MMMM yyyy', { locale: th })}</p>
 
         {/* Daily allowance config */}
@@ -152,7 +153,7 @@ export default function Budgets() {
           <Card className="p-5 bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
             <p className="text-indigo-200 text-sm font-medium">งบประมาณรวมเดือนนี้</p>
             <div className="flex items-end justify-between mt-1">
-              <p className="text-3xl font-bold">฿{formatAmount(totalSpent)}</p>
+              <p className="text-3xl font-bold">฿<CountUpAmount value={totalSpent} /></p>
               <p className="text-indigo-200 text-sm mb-1">/ ฿{formatAmount(totalBudget)}</p>
             </div>
             <div className="h-2.5 bg-white/25 rounded-full overflow-hidden mt-3">

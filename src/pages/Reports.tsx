@@ -156,7 +156,7 @@ export default function Reports() {
     <div className="min-h-screen pb-nav">
       <Header title="รายงาน" />
 
-      <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
+      <div className="max-w-lg mx-auto px-4 py-4 space-y-4 stagger">
 
         {/* Period selector */}
         <div className="flex bg-gray-100 dark:bg-gray-800 rounded-2xl p-1">
