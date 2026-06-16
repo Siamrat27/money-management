@@ -20,6 +20,7 @@ import SavingsPlanner from './pages/SavingsPlanner'
 import ScheduledPayments from './pages/ScheduledPayments'
 import Budgets from './pages/Budgets'
 import AiChat from './pages/AiChat'
+import AutoCategorize from './pages/AutoCategorize'
 import Login from './pages/Login'
 import ResetPassword from './pages/ResetPassword'
 
@@ -97,6 +98,7 @@ export default function App() {
     if (subPage === 'scheduled-payments') return <ScheduledPayments />
     if (subPage === 'budgets') return <Budgets />
     if (subPage === 'ai-chat') return <AiChat />
+    if (subPage === 'auto-categorize') return <AutoCategorize />
 
     switch (page) {
       case 'dashboard': return <Dashboard />

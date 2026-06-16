@@ -82,6 +82,54 @@ export async function parseTransactions(
     }))
 }
 
+// ─── Auto-categorize uncategorized transactions ──────────────────────────────
+
+export interface CategorizeItem { id: string; type: 'income' | 'expense'; note: string; amount: number }
+export interface CategorizeResult { id: string; category: string }
+
+// For each item, suggest a category. STRONGLY prefers reusing existing
+// categories; only proposes a new short name when truly nothing fits.
+export async function categorizeTransactions(
+  apiKey: string,
+  model: string,
+  items: CategorizeItem[],
+  ctx: { expenseCategories: string[]; incomeCategories: string[] },
+): Promise<CategorizeResult[]> {
+  const system = `คุณช่วยจัดหมวดหมู่ให้รายการการเงินที่ยังไม่มีหมวด ตอบ JSON เท่านั้น
+
+หมวดสำหรับรายจ่าย (expense) ที่มีอยู่: ${ctx.expenseCategories.join(', ') || '(ไม่มี)'}
+หมวดสำหรับรายรับ (income) ที่มีอยู่: ${ctx.incomeCategories.join(', ') || '(ไม่มี)'}
+
+กฎสำคัญมาก:
+- พยายาม "เลือกจากหมวดที่มีอยู่" ให้มากที่สุด — จับคู่ที่ใกล้เคียงที่สุดเสมอ
+- สร้างชื่อหมวดใหม่ "เฉพาะเมื่อไม่มีหมวดเดิมที่เข้ากันได้จริงๆ" เท่านั้น ใช้ชื่อสั้น ทั่วไป ใช้ซ้ำได้ (เช่น "อาหาร" ไม่ใช่ "ข้าวมันไก่ร้านป้า")
+- ห้ามสร้างหมวดใหม่ที่ความหมายซ้ำกับหมวดเดิม (เช่น มี "อาหาร" แล้วห้ามสร้าง "กินข้าว")
+- รายการ expense ใช้หมวดรายจ่าย, income ใช้หมวดรายรับ
+- ถ้าเดาไม่ได้เลย ให้ category เป็นค่าว่าง ""
+
+ข้อมูลแต่ละรายการมี id, type, note, amount
+ตอบ: {"results":[{"id":"...","category":"ชื่อหมวด"}]}`
+
+  const user = JSON.stringify(items.map((i) => ({ id: i.id, type: i.type, note: i.note, amount: i.amount })))
+
+  const res = await client(apiKey).chat.completions.create({
+    model, temperature: 0,
+    response_format: { type: 'json_object' },
+    messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+  })
+  const content = res.choices[0]?.message?.content ?? '{}'
+  try {
+    const p = JSON.parse(content)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const arr: any[] = Array.isArray(p?.results) ? p.results : Array.isArray(p) ? p : []
+    return arr
+      .filter((r) => r && typeof r.id === 'string' && typeof r.category === 'string')
+      .map((r) => ({ id: r.id, category: r.category.trim() }))
+  } catch {
+    return []
+  }
+}
+
 // ─── Chat Q&A over the user's finance summary ────────────────────────────────
 
 export interface ChatMsg { role: 'user' | 'assistant'; content: string }
