@@ -251,3 +251,76 @@ create policy "own api_keys" on public.api_keys
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 create index on public.api_keys (key_hash);
+
+-- ── FitFlow (health app): weight & diet tracking ─────────────────────────────
+create table public.weight_entries (
+  id      text primary key,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  date    text not null, -- yyyy-MM-dd
+  weight  numeric(6,2) not null check (weight > 0),
+  note    text
+);
+
+create table public.food_entries (
+  id           text primary key,
+  user_id      uuid references auth.users(id) on delete cascade not null,
+  date         text not null, -- yyyy-MM-dd
+  meal         text not null check (meal in ('breakfast','lunch','dinner','snack')),
+  name         text not null,
+  kcal         numeric(8,1) not null default 0 check (kcal >= 0),
+  protein      numeric(7,1),
+  carbs        numeric(7,1),
+  fat          numeric(7,1),
+  ai_estimated boolean not null default false,
+  created_at   timestamptz not null default now()
+);
+
+create table public.exercise_entries (
+  id          text primary key,
+  user_id     uuid references auth.users(id) on delete cascade not null,
+  date        text not null, -- yyyy-MM-dd
+  name        text not null,
+  minutes     numeric(6,1),
+  kcal_burned numeric(8,1) not null default 0 check (kcal_burned >= 0),
+  created_at  timestamptz not null default now()
+);
+
+create table public.water_logs (
+  id      text primary key,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  date    text not null, -- yyyy-MM-dd — one row per day
+  glasses int not null default 0 check (glasses >= 0)
+);
+
+create table public.health_settings (
+  user_id          uuid primary key references auth.users(id) on delete cascade,
+  daily_kcal_limit numeric default null,
+  target_weight    numeric(6,2) default null,
+  start_weight     numeric(6,2) default null,
+  height_cm        numeric(5,1) default null,
+  birth_year       int default null,
+  gender           text default null check (gender in ('male','female')),
+  activity_level   text default null check (activity_level in ('sedentary','light','moderate','active','veryActive')),
+  water_goal       int default null,
+  protein_goal     numeric default null,
+  carbs_goal       numeric default null,
+  fat_goal         numeric default null,
+  count_exercise   boolean not null default true
+);
+
+alter table public.weight_entries   enable row level security;
+alter table public.food_entries     enable row level security;
+alter table public.exercise_entries enable row level security;
+alter table public.water_logs       enable row level security;
+alter table public.health_settings  enable row level security;
+
+create policy "own weight_entries"   on public.weight_entries   for all using (auth.uid() = user_id);
+create policy "own food_entries"     on public.food_entries     for all using (auth.uid() = user_id);
+create policy "own exercise_entries" on public.exercise_entries for all using (auth.uid() = user_id);
+create policy "own water_logs"       on public.water_logs       for all using (auth.uid() = user_id);
+create policy "own health_settings"  on public.health_settings  for all using (auth.uid() = user_id);
+
+create index on public.weight_entries   (user_id, date desc);
+create index on public.food_entries     (user_id, date desc);
+create index on public.exercise_entries (user_id, date desc);
+create index on public.water_logs       (user_id, date desc);

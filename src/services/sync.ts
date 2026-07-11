@@ -10,7 +10,7 @@
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { db } from '../db/db'
-import type { Account, Tag, Transaction, Recurring, Preset, UserSettings, SavingsPlan, SavingsCashFlow, ScheduledPayment } from '../types'
+import type { Account, Tag, Transaction, Recurring, Preset, UserSettings, SavingsPlan, SavingsCashFlow, ScheduledPayment, WeightEntry, FoodEntry, ExerciseEntry, WaterLog, HealthSettings } from '../types'
 
 // ─── Pull: Supabase → Dexie ──────────────────────────────────────────────────
 
@@ -48,7 +48,7 @@ export function invalidatePullCache(userId: string) {
 async function doPullFromCloud(userId: string): Promise<void> {
   if (!isSupabaseConfigured) return
 
-  const [accRes, tagRes, txnRes, recRes, settingsRes, presetsRes, plansRes, cashFlowsRes, scheduledRes] = await Promise.all([
+  const [accRes, tagRes, txnRes, recRes, settingsRes, presetsRes, plansRes, cashFlowsRes, scheduledRes, weightRes, foodRes, exerciseRes, waterRes, healthRes] = await Promise.all([
     supabase.from('accounts').select('*').eq('user_id', userId),
     supabase.from('tags').select('*').eq('user_id', userId),
     supabase.from('transactions').select('*').eq('user_id', userId),
@@ -58,16 +58,21 @@ async function doPullFromCloud(userId: string): Promise<void> {
     supabase.from('savings_plans').select('*').eq('user_id', userId),
     supabase.from('savings_cash_flows').select('*').eq('user_id', userId),
     supabase.from('scheduled_payments').select('*').eq('user_id', userId),
+    supabase.from('weight_entries').select('*').eq('user_id', userId),
+    supabase.from('food_entries').select('*').eq('user_id', userId),
+    supabase.from('exercise_entries').select('*').eq('user_id', userId),
+    supabase.from('water_logs').select('*').eq('user_id', userId),
+    supabase.from('health_settings').select('*').eq('user_id', userId).maybeSingle(),
   ])
 
   // ALL queries must succeed before we destructively replace local data —
   // a partial failure would otherwise silently wipe local tables.
-  const firstError = [accRes, tagRes, txnRes, recRes, settingsRes, presetsRes, plansRes, cashFlowsRes, scheduledRes]
+  const firstError = [accRes, tagRes, txnRes, recRes, settingsRes, presetsRes, plansRes, cashFlowsRes, scheduledRes, weightRes, foodRes, exerciseRes, waterRes, healthRes]
     .map((r) => r.error)
     .find(Boolean)
   if (firstError) throw new Error(firstError.message)
 
-  await db.transaction('rw', [db.accounts, db.tags, db.transactions, db.recurring, db.userSettings, db.presets, db.savingsPlans, db.savingsCashFlows, db.scheduledPayments], async () => {
+  await db.transaction('rw', [db.accounts, db.tags, db.transactions, db.recurring, db.userSettings, db.presets, db.savingsPlans, db.savingsCashFlows, db.scheduledPayments, db.weightEntries, db.foodEntries, db.exerciseEntries, db.waterLogs, db.healthSettings], async () => {
     // Clear existing cloud-user data
     await db.accounts.where('userId').equals(userId).delete()
     await db.tags.where('userId').equals(userId).delete()
@@ -77,6 +82,11 @@ async function doPullFromCloud(userId: string): Promise<void> {
     await db.savingsPlans.where('userId').equals(userId).delete()
     await db.savingsCashFlows.where('userId').equals(userId).delete()
     await db.scheduledPayments.where('userId').equals(userId).delete()
+    await db.weightEntries.where('userId').equals(userId).delete()
+    await db.foodEntries.where('userId').equals(userId).delete()
+    await db.exerciseEntries.where('userId').equals(userId).delete()
+    await db.waterLogs.where('userId').equals(userId).delete()
+    await db.healthSettings.where('userId').equals(userId).delete()
 
     if (accRes.data?.length) {
       await db.accounts.bulkPut(accRes.data.map(rowToAccount))
@@ -104,6 +114,21 @@ async function doPullFromCloud(userId: string): Promise<void> {
     }
     if (scheduledRes.data?.length) {
       await db.scheduledPayments.bulkPut(scheduledRes.data.map(rowToScheduledPayment))
+    }
+    if (weightRes.data?.length) {
+      await db.weightEntries.bulkPut(weightRes.data.map(rowToWeightEntry))
+    }
+    if (foodRes.data?.length) {
+      await db.foodEntries.bulkPut(foodRes.data.map(rowToFoodEntry))
+    }
+    if (exerciseRes.data?.length) {
+      await db.exerciseEntries.bulkPut(exerciseRes.data.map(rowToExerciseEntry))
+    }
+    if (waterRes.data?.length) {
+      await db.waterLogs.bulkPut(waterRes.data.map(rowToWaterLog))
+    }
+    if (healthRes.data) {
+      await db.healthSettings.put(rowToHealthSettings(healthRes.data as Record<string, unknown>))
     }
   })
 
@@ -207,6 +232,46 @@ export async function deleteCloudScheduledPayment(id: string) {
   throwIfError(await supabase.from('scheduled_payments').delete().eq('id', id))
 }
 
+export async function pushWeightEntry(w: WeightEntry) {
+  if (!isSupabaseConfigured) return
+  throwIfError(await supabase.from('weight_entries').upsert(weightEntryToRow(w)))
+}
+
+export async function deleteCloudWeightEntry(id: string) {
+  if (!isSupabaseConfigured) return
+  throwIfError(await supabase.from('weight_entries').delete().eq('id', id))
+}
+
+export async function pushFoodEntry(f: FoodEntry) {
+  if (!isSupabaseConfigured) return
+  throwIfError(await supabase.from('food_entries').upsert(foodEntryToRow(f)))
+}
+
+export async function deleteCloudFoodEntry(id: string) {
+  if (!isSupabaseConfigured) return
+  throwIfError(await supabase.from('food_entries').delete().eq('id', id))
+}
+
+export async function pushExerciseEntry(e: ExerciseEntry) {
+  if (!isSupabaseConfigured) return
+  throwIfError(await supabase.from('exercise_entries').upsert(exerciseEntryToRow(e)))
+}
+
+export async function deleteCloudExerciseEntry(id: string) {
+  if (!isSupabaseConfigured) return
+  throwIfError(await supabase.from('exercise_entries').delete().eq('id', id))
+}
+
+export async function pushWaterLog(w: WaterLog) {
+  if (!isSupabaseConfigured) return
+  throwIfError(await supabase.from('water_logs').upsert(waterLogToRow(w)))
+}
+
+export async function pushHealthSettings(s: HealthSettings) {
+  if (!isSupabaseConfigured) return
+  throwIfError(await supabase.from('health_settings').upsert(healthSettingsToRow(s)))
+}
+
 // ─── Bulk: used by import ────────────────────────────────────────────────────
 
 // Delete ALL cloud data for a user (overwrite-import). Accounts cascade to
@@ -215,7 +280,7 @@ export async function deleteCloudScheduledPayment(id: string) {
 export async function deleteAllCloudData(userId: string) {
   if (!isSupabaseConfigured) return
   // children first to avoid FK violations
-  for (const table of ['transactions', 'recurring', 'presets', 'scheduled_payments', 'savings_cash_flows', 'savings_plans', 'tags', 'accounts'] as const) {
+  for (const table of ['transactions', 'recurring', 'presets', 'scheduled_payments', 'savings_cash_flows', 'savings_plans', 'tags', 'accounts', 'weight_entries', 'food_entries', 'exercise_entries', 'water_logs', 'health_settings'] as const) {
     throwIfError(await supabase.from(table).delete().eq('user_id', userId))
   }
 }
@@ -223,7 +288,7 @@ export async function deleteAllCloudData(userId: string) {
 // Push every local record of this user to the cloud (after import).
 export async function pushAllUserData(userId: string) {
   if (!isSupabaseConfigured) return
-  const [accounts, tags, transactions, recurring, presets, savingsPlans, savingsCashFlows, scheduledPayments, settings] =
+  const [accounts, tags, transactions, recurring, presets, savingsPlans, savingsCashFlows, scheduledPayments, settings, weightEntries, foodEntries, exerciseEntries, waterLogs, healthSettings] =
     await Promise.all([
       db.accounts.where('userId').equals(userId).toArray(),
       db.tags.where('userId').equals(userId).toArray(),
@@ -234,6 +299,11 @@ export async function pushAllUserData(userId: string) {
       db.savingsCashFlows.where('userId').equals(userId).toArray(),
       db.scheduledPayments.where('userId').equals(userId).toArray(),
       db.userSettings.get(userId),
+      db.weightEntries.where('userId').equals(userId).toArray(),
+      db.foodEntries.where('userId').equals(userId).toArray(),
+      db.exerciseEntries.where('userId').equals(userId).toArray(),
+      db.waterLogs.where('userId').equals(userId).toArray(),
+      db.healthSettings.get(userId),
     ])
   // parents first so FK references resolve
   if (accounts.length) throwIfError(await supabase.from('accounts').upsert(accounts.map(accountToRow)))
@@ -245,6 +315,11 @@ export async function pushAllUserData(userId: string) {
   if (savingsCashFlows.length) throwIfError(await supabase.from('savings_cash_flows').upsert(savingsCashFlows.map(savingsCashFlowToRow)))
   if (scheduledPayments.length) throwIfError(await supabase.from('scheduled_payments').upsert(scheduledPayments.map(scheduledPaymentToRow)))
   if (settings) throwIfError(await supabase.from('user_settings').upsert(settingsToRow(settings)))
+  if (weightEntries.length) throwIfError(await supabase.from('weight_entries').upsert(weightEntries.map(weightEntryToRow)))
+  if (foodEntries.length) throwIfError(await supabase.from('food_entries').upsert(foodEntries.map(foodEntryToRow)))
+  if (exerciseEntries.length) throwIfError(await supabase.from('exercise_entries').upsert(exerciseEntries.map(exerciseEntryToRow)))
+  if (waterLogs.length) throwIfError(await supabase.from('water_logs').upsert(waterLogs.map(waterLogToRow)))
+  if (healthSettings) throwIfError(await supabase.from('health_settings').upsert(healthSettingsToRow(healthSettings)))
 }
 
 // ─── Seed defaults for new cloud users ───────────────────────────────────────
@@ -462,5 +537,98 @@ function rowToScheduledPayment(r: Record<string, unknown>): ScheduledPayment {
     executedAt: r.executed_at ? new Date(r.executed_at as string) : undefined,
     transactionId: (r.transaction_id as string | null) ?? undefined,
     remindedAt: r.reminded_at ? new Date(r.reminded_at as string) : undefined,
+  }
+}
+
+function weightEntryToRow(w: WeightEntry) {
+  return { id: w.id, user_id: w.userId, date: w.date, weight: w.weight, note: w.note ?? null }
+}
+
+function rowToWeightEntry(r: Record<string, unknown>): WeightEntry {
+  return {
+    id: r.id as string, userId: r.user_id as string, date: r.date as string,
+    weight: r.weight as number, note: (r.note as string | null) ?? undefined,
+  }
+}
+
+function foodEntryToRow(f: FoodEntry) {
+  return {
+    id: f.id, user_id: f.userId, date: f.date, meal: f.meal, name: f.name,
+    kcal: f.kcal, protein: f.protein ?? null, carbs: f.carbs ?? null, fat: f.fat ?? null,
+    ai_estimated: f.aiEstimated ?? false, created_at: f.createdAt.toISOString(),
+  }
+}
+
+function rowToFoodEntry(r: Record<string, unknown>): FoodEntry {
+  return {
+    id: r.id as string, userId: r.user_id as string, date: r.date as string,
+    meal: r.meal as FoodEntry['meal'], name: r.name as string, kcal: r.kcal as number,
+    protein: (r.protein as number | null) ?? undefined,
+    carbs: (r.carbs as number | null) ?? undefined,
+    fat: (r.fat as number | null) ?? undefined,
+    aiEstimated: (r.ai_estimated as boolean | null) ?? undefined,
+    createdAt: new Date(r.created_at as string),
+  }
+}
+
+function exerciseEntryToRow(e: ExerciseEntry) {
+  return {
+    id: e.id, user_id: e.userId, date: e.date, name: e.name,
+    minutes: e.minutes ?? null, kcal_burned: e.kcalBurned, created_at: e.createdAt.toISOString(),
+  }
+}
+
+function rowToExerciseEntry(r: Record<string, unknown>): ExerciseEntry {
+  return {
+    id: r.id as string, userId: r.user_id as string, date: r.date as string,
+    name: r.name as string, minutes: (r.minutes as number | null) ?? undefined,
+    kcalBurned: r.kcal_burned as number, createdAt: new Date(r.created_at as string),
+  }
+}
+
+function waterLogToRow(w: WaterLog) {
+  return { id: w.id, user_id: w.userId, date: w.date, glasses: w.glasses }
+}
+
+function rowToWaterLog(r: Record<string, unknown>): WaterLog {
+  return {
+    id: r.id as string, userId: r.user_id as string,
+    date: r.date as string, glasses: r.glasses as number,
+  }
+}
+
+function healthSettingsToRow(s: HealthSettings) {
+  return {
+    user_id: s.userId,
+    daily_kcal_limit: s.dailyKcalLimit ?? null,
+    target_weight: s.targetWeight ?? null,
+    start_weight: s.startWeight ?? null,
+    height_cm: s.heightCm ?? null,
+    birth_year: s.birthYear ?? null,
+    gender: s.gender ?? null,
+    activity_level: s.activityLevel ?? null,
+    water_goal: s.waterGoal ?? null,
+    protein_goal: s.proteinGoal ?? null,
+    carbs_goal: s.carbsGoal ?? null,
+    fat_goal: s.fatGoal ?? null,
+    count_exercise: s.countExercise ?? true,
+  }
+}
+
+function rowToHealthSettings(r: Record<string, unknown>): HealthSettings {
+  return {
+    userId: r.user_id as string,
+    dailyKcalLimit: (r.daily_kcal_limit as number | null) ?? undefined,
+    targetWeight: (r.target_weight as number | null) ?? undefined,
+    startWeight: (r.start_weight as number | null) ?? undefined,
+    heightCm: (r.height_cm as number | null) ?? undefined,
+    birthYear: (r.birth_year as number | null) ?? undefined,
+    gender: (r.gender as HealthSettings['gender'] | null) ?? undefined,
+    activityLevel: (r.activity_level as HealthSettings['activityLevel'] | null) ?? undefined,
+    waterGoal: (r.water_goal as number | null) ?? undefined,
+    proteinGoal: (r.protein_goal as number | null) ?? undefined,
+    carbsGoal: (r.carbs_goal as number | null) ?? undefined,
+    fatGoal: (r.fat_goal as number | null) ?? undefined,
+    countExercise: (r.count_exercise as boolean | null) ?? undefined,
   }
 }

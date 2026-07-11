@@ -210,6 +210,63 @@ export async function parseSearchFilter(
   }
 }
 
+// ─── Food kcal estimation (FitFlow health app) ───────────────────────────────
+
+export interface ParsedFood {
+  name: string
+  kcal: number
+  protein?: number // grams
+  carbs?: number
+  fat?: number
+}
+
+// Estimate calories + macros from free Thai text like "ข้าวมันไก่ 1 จาน กับชาเย็น".
+// Supports multiple menu items in one message; quantities scale the estimate.
+export async function estimateFood(
+  apiKey: string,
+  model: string,
+  text: string,
+): Promise<ParsedFood[]> {
+  const system = `คุณเป็นนักโภชนาการ ช่วยประมาณแคลอรี่และสารอาหารของเมนูอาหาร (เน้นอาหารไทย) ตอบ JSON เท่านั้น
+
+กฎ:
+- แยกข้อความเป็นรายการอาหารทีละเมนู (รองรับหลายเมนูในประโยคเดียว)
+- ถ้าระบุจำนวน เช่น "2 จาน" "ครึ่งถ้วย" ให้คูณ/ปรับปริมาณตาม
+- kcal: พลังงานโดยประมาณ (ตัวเลขจำนวนเต็ม, ใช้ค่ากลางของเมนูขนาดปกติในไทย)
+- protein, carbs, fat: กรัมโดยประมาณ
+- name: ชื่อเมนูสั้นๆ พร้อมจำนวน เช่น "ข้าวมันไก่ 1 จาน"
+- ถ้าไม่ใช่อาหารเลย ให้ items เป็น []
+
+ตอบรูปแบบ: {"items":[{"name":"...","kcal":0,"protein":0,"carbs":0,"fat":0}]}`
+
+  const res = await client(apiKey).chat.completions.create({
+    model,
+    temperature: 0,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: text },
+    ],
+  })
+
+  const content = res.choices[0]?.message?.content ?? '{}'
+  let parsed: unknown
+  try { parsed = JSON.parse(content) } catch { return [] }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const arr: any[] = Array.isArray((parsed as any)?.items) ? (parsed as any).items
+    : Array.isArray(parsed) ? (parsed as any[]) : []
+
+  return arr
+    .filter((it) => it && typeof it.name === 'string' && it.name && Number(it.kcal) >= 0)
+    .map((it) => ({
+      name: it.name,
+      kcal: Math.round(Number(it.kcal)),
+      protein: Number(it.protein) > 0 ? Math.round(Number(it.protein)) : undefined,
+      carbs: Number(it.carbs) > 0 ? Math.round(Number(it.carbs)) : undefined,
+      fat: Number(it.fat) > 0 ? Math.round(Number(it.fat)) : undefined,
+    }))
+}
+
 // ─── Monthly advice (for Discord summary) ────────────────────────────────────
 
 export async function generateAdvice(apiKey: string, model: string, summary: string): Promise<string> {

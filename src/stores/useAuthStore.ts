@@ -109,7 +109,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     if (isSupabaseConfigured) await supabase.auth.signOut()
     if (userId) {
       invalidatePullCache(userId)
-      await db.transaction('rw', [db.accounts, db.tags, db.transactions, db.recurring, db.userSettings, db.presets, db.savingsPlans, db.savingsCashFlows, db.scheduledPayments], async () => {
+      await db.transaction('rw', [db.accounts, db.tags, db.transactions, db.recurring, db.userSettings, db.presets, db.savingsPlans, db.savingsCashFlows, db.scheduledPayments, db.weightEntries, db.foodEntries, db.exerciseEntries, db.waterLogs, db.healthSettings], async () => {
         await db.accounts.where('userId').equals(userId).delete()
         await db.tags.where('userId').equals(userId).delete()
         await db.transactions.where('userId').equals(userId).delete()
@@ -119,6 +119,11 @@ export const useAuthStore = create<AuthStore>((set) => ({
         await db.savingsPlans.where('userId').equals(userId).delete()
         await db.savingsCashFlows.where('userId').equals(userId).delete()
         await db.scheduledPayments.where('userId').equals(userId).delete()
+        await db.weightEntries.where('userId').equals(userId).delete()
+        await db.foodEntries.where('userId').equals(userId).delete()
+        await db.exerciseEntries.where('userId').equals(userId).delete()
+        await db.waterLogs.where('userId').equals(userId).delete()
+        await db.healthSettings.where('userId').equals(userId).delete()
       })
     }
     set({ user: null, session: null })

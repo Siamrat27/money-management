@@ -23,9 +23,15 @@ import AiChat from './pages/AiChat'
 import AutoCategorize from './pages/AutoCategorize'
 import Login from './pages/Login'
 import ResetPassword from './pages/ResetPassword'
+import AppSelector from './pages/AppSelector'
+import HealthDashboard from './pages/health/HealthDashboard'
+import FoodLog from './pages/health/FoodLog'
+import HealthCalendar from './pages/health/HealthCalendar'
+import HealthReports from './pages/health/HealthReports'
+import HealthSettingsPage from './pages/health/HealthSettingsPage'
 
 export default function App() {
-  const { page, subPage } = useAppStore()
+  const { page, subPage, app } = useAppStore()
   const { user, loading, setSyncing, setSyncError, recoveryMode } = useAuthStore()
   const lastSyncedUser = useRef<string | null>(null)
 
@@ -90,7 +96,23 @@ export default function App() {
     return <Login />
   }
 
+  // Logged in but no app chosen yet — show the app menu
+  if (!app) {
+    return <AppSelector />
+  }
+
   function renderPage() {
+    if (app === 'health') {
+      switch (page) {
+        case 'dashboard': return <HealthDashboard />
+        case 'add': return <FoodLog />
+        case 'calendar': return <HealthCalendar />
+        case 'reports': return <HealthReports />
+        case 'settings': return <HealthSettingsPage />
+        default: return <HealthDashboard />
+      }
+    }
+
     if (subPage === 'transactions') return <Transactions />
     if (subPage === 'accounts') return <Accounts />
     if (subPage === 'recurring') return <RecurringManager />

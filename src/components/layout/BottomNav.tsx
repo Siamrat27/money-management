@@ -11,7 +11,10 @@ const NAV: { icon: typeof LayoutDashboard; label: string; page: Page }[] = [
 ]
 
 export default function BottomNav() {
-  const { page, setPage } = useAppStore()
+  const { page, setPage, app } = useAppStore()
+  const isHealth = app === 'health'
+  const activeColor = isHealth ? 'text-emerald-500' : 'text-indigo-500'
+  const addBg = isHealth ? 'bg-emerald-500 shadow-emerald-500/40' : 'bg-indigo-500 shadow-indigo-500/40'
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 safe-bottom">
@@ -21,7 +24,7 @@ export default function BottomNav() {
             <button
               key={p}
               onClick={() => setPage('add')}
-              className="relative -top-5 flex items-center justify-center w-14 h-14 rounded-full bg-indigo-500 text-white shadow-lg shadow-indigo-500/40 active:scale-95 transition-transform"
+              className={`relative -top-5 flex items-center justify-center w-14 h-14 rounded-full text-white shadow-lg active:scale-95 transition-transform ${addBg}`}
             >
               <Plus size={28} />
             </button>
@@ -30,7 +33,7 @@ export default function BottomNav() {
               key={p}
               onClick={() => setPage(p)}
               className={`flex flex-col items-center py-2 px-4 gap-0.5 transition-colors ${
-                page === p ? 'text-indigo-500' : 'text-gray-400 dark:text-gray-500'
+                page === p ? activeColor : 'text-gray-400 dark:text-gray-500'
               }`}
             >
               <Icon size={22} />

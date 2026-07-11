@@ -120,5 +120,69 @@ export interface ScheduledPayment {
   remindedAt?: Date // when the "due soon" Discord reminder was sent
 }
 
+// ─── Health app (FitFlow: weight & diet tracking) ────────────────────────────
+
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+export type Gender = 'male' | 'female'
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'veryActive'
+
+export interface WeightEntry {
+  id: string
+  userId: string
+  date: string // yyyy-MM-dd — one entry per day (upsert by date)
+  weight: number // kg
+  note?: string
+}
+
+export interface FoodEntry {
+  id: string
+  userId: string
+  date: string // yyyy-MM-dd
+  meal: MealType
+  name: string
+  kcal: number
+  protein?: number // grams
+  carbs?: number
+  fat?: number
+  aiEstimated?: boolean // kcal came from LLM estimation
+  createdAt: Date
+}
+
+export interface ExerciseEntry {
+  id: string
+  userId: string
+  date: string // yyyy-MM-dd
+  name: string
+  minutes?: number
+  kcalBurned: number
+  createdAt: Date
+}
+
+export interface WaterLog {
+  id: string
+  userId: string
+  date: string // yyyy-MM-dd — one row per day
+  glasses: number
+}
+
+export interface HealthSettings {
+  userId: string
+  dailyKcalLimit?: number
+  targetWeight?: number
+  startWeight?: number // baseline for progress; defaults to first logged weight
+  heightCm?: number
+  birthYear?: number
+  gender?: Gender
+  activityLevel?: ActivityLevel
+  waterGoal?: number // glasses per day
+  proteinGoal?: number // grams per day
+  carbsGoal?: number
+  fatGoal?: number
+  countExercise?: boolean // subtract exercise kcal from the daily total
+}
+
+// ─── Navigation ───────────────────────────────────────────────────────────────
+
+export type AppId = 'money' | 'health'
 export type Page = 'dashboard' | 'add' | 'calendar' | 'reports' | 'settings'
 export type SubPage = 'transactions' | 'accounts' | 'recurring' | 'savings-planner' | 'scheduled-payments' | 'budgets' | 'ai-chat' | 'auto-categorize' | null

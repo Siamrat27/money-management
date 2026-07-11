@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { Account, Tag, Transaction, Recurring, Preset, UserSettings, SavingsPlan, SavingsCashFlow, ScheduledPayment } from '../types'
+import type { Account, Tag, Transaction, Recurring, Preset, UserSettings, SavingsPlan, SavingsCashFlow, ScheduledPayment, WeightEntry, FoodEntry, ExerciseEntry, WaterLog, HealthSettings } from '../types'
 
 const db = new Dexie('PocketFlowDB') as Dexie & {
   accounts: EntityTable<Account, 'id'>
@@ -11,6 +11,11 @@ const db = new Dexie('PocketFlowDB') as Dexie & {
   savingsPlans: EntityTable<SavingsPlan, 'id'>
   savingsCashFlows: EntityTable<SavingsCashFlow, 'id'>
   scheduledPayments: EntityTable<ScheduledPayment, 'id'>
+  weightEntries: EntityTable<WeightEntry, 'id'>
+  foodEntries: EntityTable<FoodEntry, 'id'>
+  exerciseEntries: EntityTable<ExerciseEntry, 'id'>
+  waterLogs: EntityTable<WaterLog, 'id'>
+  healthSettings: EntityTable<HealthSettings, 'userId'>
 }
 
 // Version 2: switched from auto-increment int to UUID string IDs, added userId
@@ -51,6 +56,24 @@ db.version(5).stores({
   savingsPlans: 'id, userId',
   savingsCashFlows: 'id, userId, planId',
   scheduledPayments: 'id, userId, dueDate, isActive',
+})
+
+// Version 6: health app (weight & diet tracking)
+db.version(6).stores({
+  accounts: 'id, userId, name, type, createdAt',
+  tags: 'id, userId, name, type',
+  transactions: 'id, userId, type, accountId, toAccountId, tagId, date, recurringId',
+  recurring: 'id, userId, type, accountId, tagId, nextDueDate, isActive',
+  presets: 'id, userId, type, accountId',
+  userSettings: 'userId',
+  savingsPlans: 'id, userId',
+  savingsCashFlows: 'id, userId, planId',
+  scheduledPayments: 'id, userId, dueDate, isActive',
+  weightEntries: 'id, userId, date, [userId+date]',
+  foodEntries: 'id, userId, date, meal, [userId+date]',
+  exerciseEntries: 'id, userId, date, [userId+date]',
+  waterLogs: 'id, userId, date, [userId+date]',
+  healthSettings: 'userId',
 })
 
 export const LOCAL_USER_ID = 'local'

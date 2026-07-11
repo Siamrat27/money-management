@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { APP_VERSION } from '../version'
-import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List, LogOut, RefreshCw, Zap, Bell, PiggyBank, CalendarClock, Target, Lock, KeyRound, Copy, Check } from 'lucide-react'
+import { Plus, Edit2, Trash2, Download, Upload, AlertTriangle, Wallet, RefreshCcw, List, LogOut, RefreshCw, Zap, Bell, PiggyBank, CalendarClock, Target, Lock, KeyRound, Copy, Check, LayoutGrid } from 'lucide-react'
 import { hasPin, setPin, clearPin, verifyPin } from '../lib/pin'
 import { listApiKeys, createApiKey, deleteApiKey, txEndpoint } from '../lib/apiKeys'
 import type { ApiKeyRow } from '../lib/apiKeys'
@@ -356,6 +356,7 @@ export default function Settings() {
             { icon: Target, label: 'งบประมาณ', action: () => setSubPage('budgets') },
             { icon: Sparkles, label: 'ถามการเงิน', action: () => setSubPage('ai-chat') },
             ...(userSettings?.groqApiKey ? [{ icon: Wand2, label: 'จัดหมวด AI', action: () => setSubPage('auto-categorize') }] : []),
+            { icon: LayoutGrid, label: 'สลับแอป', action: () => useAppStore.getState().setApp(null) },
           ].map(({ icon: Icon, label, action }) => (
             <Card key={label} className="p-4 text-center cursor-pointer active:scale-[0.98] transition-transform" onClick={action}>
               <Icon size={24} className="mx-auto mb-1 text-indigo-500" />
@@ -999,6 +1000,10 @@ export default function Settings() {
                   { key: 'savingsCashFlows', label: 'กระแสเงิน (แผนออม)' },
                   { key: 'scheduledPayments', label: 'การจ่าย/รับล่วงหน้า' },
                   { key: 'userSettings', label: 'การตั้งค่า (Discord)' },
+                  { key: 'weightEntries', label: 'บันทึกน้ำหนัก (FitFlow)' },
+                  { key: 'foodEntries', label: 'บันทึกอาหาร (FitFlow)' },
+                  { key: 'exerciseEntries', label: 'ออกกำลังกาย (FitFlow)' },
+                  { key: 'waterLogs', label: 'ดื่มน้ำ (FitFlow)' },
                 ] as { key: keyof ImportPreview; label: string }[]
               ).map(({ key, label }) => {
                 const n = importPayload?.preview[key] ?? 0

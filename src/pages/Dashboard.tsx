@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowUpCircle, ArrowDownCircle, Wallet, ChevronRight, RefreshCw, X } from 'lucide-react'
+import { ArrowUpCircle, ArrowDownCircle, Wallet, ChevronRight, RefreshCw, X, LayoutGrid } from 'lucide-react'
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, LOCAL_USER_ID } from '../db/db'
@@ -294,13 +294,22 @@ export default function Dashboard() {
       <Header
         title="PocketFlow 💰"
         right={
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="p-2 rounded-full active:bg-gray-100 dark:active:bg-gray-800 disabled:opacity-50"
-          >
-            <RefreshCw size={20} className={refreshing ? 'animate-spin text-indigo-500' : ''} />
-          </button>
+          <>
+            <button
+              onClick={() => useAppStore.getState().setApp(null)}
+              className="p-2 rounded-full active:bg-gray-100 dark:active:bg-gray-800"
+              title="สลับแอป"
+            >
+              <LayoutGrid size={20} />
+            </button>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="p-2 rounded-full active:bg-gray-100 dark:active:bg-gray-800 disabled:opacity-50"
+            >
+              <RefreshCw size={20} className={refreshing ? 'animate-spin text-indigo-500' : ''} />
+            </button>
+          </>
         }
       />
 

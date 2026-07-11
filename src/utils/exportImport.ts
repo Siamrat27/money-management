@@ -3,12 +3,13 @@ import { deleteAllCloudData, pushAllUserData } from '../services/sync'
 import type {
   Account, Tag, Transaction, Recurring, Preset,
   SavingsPlan, SavingsCashFlow, ScheduledPayment, UserSettings,
+  WeightEntry, FoodEntry, ExerciseEntry, WaterLog, HealthSettings,
 } from '../types'
 
 // ─── EXPORT ───────────────────────────────────────────────────────────────────
 
 export async function exportData(): Promise<void> {
-  const [accounts, tags, transactions, recurring, presets, savingsPlans, savingsCashFlows, scheduledPayments, userSettings] =
+  const [accounts, tags, transactions, recurring, presets, savingsPlans, savingsCashFlows, scheduledPayments, userSettings, weightEntries, foodEntries, exerciseEntries, waterLogs, healthSettings] =
     await Promise.all([
       db.accounts.toArray(),
       db.tags.toArray(),
@@ -19,13 +20,19 @@ export async function exportData(): Promise<void> {
       db.savingsCashFlows.toArray(),
       db.scheduledPayments.toArray(),
       db.userSettings.toArray(),
+      db.weightEntries.toArray(),
+      db.foodEntries.toArray(),
+      db.exerciseEntries.toArray(),
+      db.waterLogs.toArray(),
+      db.healthSettings.toArray(),
     ])
 
   const payload = {
-    version: 3,
+    version: 4,
     exportedAt: new Date().toISOString(),
     accounts, tags, transactions, recurring, presets,
     savingsPlans, savingsCashFlows, scheduledPayments, userSettings,
+    weightEntries, foodEntries, exerciseEntries, waterLogs, healthSettings,
   }
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -92,6 +99,10 @@ export interface ImportPreview {
   savingsCashFlows: number
   scheduledPayments: number
   userSettings: number
+  weightEntries: number
+  foodEntries: number
+  exerciseEntries: number
+  waterLogs: number
 }
 
 export interface ImportPayload {
@@ -119,6 +130,10 @@ export async function parseImportFile(file: File): Promise<ImportPayload> {
       savingsCashFlows: count('savingsCashFlows'),
       scheduledPayments: count('scheduledPayments'),
       userSettings: count('userSettings'),
+      weightEntries: count('weightEntries'),
+      foodEntries: count('foodEntries'),
+      exerciseEntries: count('exerciseEntries'),
+      waterLogs: count('waterLogs'),
     },
   }
 }
@@ -157,6 +172,10 @@ export async function importData(
     executedAt: r.executedAt ? new Date(r.executedAt as string) : undefined,
     remindedAt: r.remindedAt ? new Date(r.remindedAt as string) : undefined,
   })) as unknown as ScheduledPayment[]
+  const weightEntries = coerce(g('weightEntries'), userId, () => ({})) as unknown as WeightEntry[]
+  const foodEntries = coerce(g('foodEntries'), userId, (r) => ({ createdAt: new Date(r.createdAt as string) })) as unknown as FoodEntry[]
+  const exerciseEntries = coerce(g('exerciseEntries'), userId, (r) => ({ createdAt: new Date(r.createdAt as string) })) as unknown as ExerciseEntry[]
+  const waterLogs = coerce(g('waterLogs'), userId, () => ({})) as unknown as WaterLog[]
 
   // userSettings is keyed by userId (one row per user), not id. Collapse any
   // exported settings to the current user.
@@ -164,10 +183,15 @@ export async function importData(
   const importedSettings = settingsRows.length
     ? ({ ...(settingsRows[0] as R), userId } as unknown as UserSettings)
     : null
+  const healthRows = g('healthSettings')
+  const importedHealthSettings = healthRows.length
+    ? ({ ...(healthRows[0] as R), userId } as unknown as HealthSettings)
+    : null
 
   const allTables = [
     db.accounts, db.tags, db.transactions, db.recurring, db.presets,
     db.savingsPlans, db.savingsCashFlows, db.scheduledPayments, db.userSettings,
+    db.weightEntries, db.foodEntries, db.exerciseEntries, db.waterLogs, db.healthSettings,
   ]
 
   if (mode === 'overwrite') {
@@ -185,10 +209,15 @@ export async function importData(
       if (savingsCashFlows.length) await db.savingsCashFlows.bulkAdd(savingsCashFlows)
       if (scheduledPayments.length) await db.scheduledPayments.bulkAdd(scheduledPayments)
       if (importedSettings) await db.userSettings.put(importedSettings)
+      if (weightEntries.length) await db.weightEntries.bulkAdd(weightEntries)
+      if (foodEntries.length) await db.foodEntries.bulkAdd(foodEntries)
+      if (exerciseEntries.length) await db.exerciseEntries.bulkAdd(exerciseEntries)
+      if (waterLogs.length) await db.waterLogs.bulkAdd(waterLogs)
+      if (importedHealthSettings) await db.healthSettings.put(importedHealthSettings)
     })
   } else {
     // Merge: fetch existing IDs for each table, then only add records not yet present
-    const [eA, eTg, eTx, eR, ePr, eSP, eSCF, eSch] = await Promise.all([
+    const [eA, eTg, eTx, eR, ePr, eSP, eSCF, eSch, eW, eF, eEx, eWa] = await Promise.all([
       db.accounts.toCollection().primaryKeys(),
       db.tags.toCollection().primaryKeys(),
       db.transactions.toCollection().primaryKeys(),
@@ -197,10 +226,15 @@ export async function importData(
       db.savingsPlans.toCollection().primaryKeys(),
       db.savingsCashFlows.toCollection().primaryKeys(),
       db.scheduledPayments.toCollection().primaryKeys(),
+      db.weightEntries.toCollection().primaryKeys(),
+      db.foodEntries.toCollection().primaryKeys(),
+      db.exerciseEntries.toCollection().primaryKeys(),
+      db.waterLogs.toCollection().primaryKeys(),
     ])
     const toSet = (pks: unknown[]) => new Set(pks.map(String))
     const sA = toSet(eA), sTg = toSet(eTg), sTx = toSet(eTx), sR = toSet(eR)
     const sPr = toSet(ePr), sSP = toSet(eSP), sSCF = toSet(eSCF), sSch = toSet(eSch)
+    const sW = toSet(eW), sF = toSet(eF), sEx = toSet(eEx), sWa = toSet(eWa)
 
     await db.transaction('rw', allTables, async () => {
       const newA = accounts.filter((a) => !sA.has(a.id))
@@ -211,6 +245,10 @@ export async function importData(
       const newSP = savingsPlans.filter((a) => !sSP.has(a.id))
       const newSCF = savingsCashFlows.filter((a) => !sSCF.has(a.id))
       const newSch = scheduledPayments.filter((a) => !sSch.has(a.id))
+      const newW = weightEntries.filter((a) => !sW.has(a.id))
+      const newF = foodEntries.filter((a) => !sF.has(a.id))
+      const newEx = exerciseEntries.filter((a) => !sEx.has(a.id))
+      const newWa = waterLogs.filter((a) => !sWa.has(a.id))
 
       if (newA.length) await db.accounts.bulkAdd(newA)
       if (newTg.length) await db.tags.bulkAdd(newTg)
@@ -220,10 +258,17 @@ export async function importData(
       if (newSP.length) await db.savingsPlans.bulkAdd(newSP)
       if (newSCF.length) await db.savingsCashFlows.bulkAdd(newSCF)
       if (newSch.length) await db.scheduledPayments.bulkAdd(newSch)
+      if (newW.length) await db.weightEntries.bulkAdd(newW)
+      if (newF.length) await db.foodEntries.bulkAdd(newF)
+      if (newEx.length) await db.exerciseEntries.bulkAdd(newEx)
+      if (newWa.length) await db.waterLogs.bulkAdd(newWa)
       // Only adopt imported settings if this user has none yet (don't clobber
       // an existing Discord webhook / summary prefs on merge)
       if (importedSettings && !(await db.userSettings.get(userId))) {
         await db.userSettings.put(importedSettings)
+      }
+      if (importedHealthSettings && !(await db.healthSettings.get(userId))) {
+        await db.healthSettings.put(importedHealthSettings)
       }
     })
   }
