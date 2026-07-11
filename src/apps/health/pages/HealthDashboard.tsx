@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { LayoutGrid, Scale, Flame, Droplets, Plus, Minus, TrendingDown, TrendingUp } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { format, parseISO, subDays } from 'date-fns'
@@ -13,6 +13,8 @@ import { dateKey, calcBMI, bmiCategory, calcStreak, formatKcal, formatWeight, ME
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, LOCAL_USER_ID } from '@/db/db'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { pullFromCloudOnce } from '@/services/sync'
+import { isSupabaseConfigured } from '@/lib/supabase'
 import Card from '@/components/ui/Card'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
@@ -31,7 +33,15 @@ function useFoodStreak(): number {
 
 export default function HealthDashboard() {
   const { setApp, setPage } = useAppStore()
+  const user = useAuthStore((s) => s.user)
   const today = dateKey()
+
+  // Cold-start safety net (same as the money Dashboard): make sure this
+  // session pulled cloud data at least once, e.g. when landing here directly
+  // after login. Deduped per session, so this is a no-op if App already pulled.
+  useEffect(() => {
+    if (user && isSupabaseConfigured) pullFromCloudOnce(user.id).catch(console.error)
+  }, [user?.id])
   const settings = useHealthSettings()
   const weights = useWeightEntries() // sorted by date asc
   const todayFood = useFoodEntriesByDate(today)

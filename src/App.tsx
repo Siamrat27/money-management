@@ -4,7 +4,7 @@ import { shouldLockNow, markActive } from '@/lib/pin'
 import PinLock from '@/components/PinLock'
 import { useAppStore } from '@/stores/useAppStore'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { pullFromCloud } from '@/services/sync'
+import { pullFromCloudOnce } from '@/services/sync'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import BottomNav from '@/components/layout/BottomNav'
 import Snackbar from '@/components/ui/Snackbar'
@@ -36,7 +36,6 @@ import HealthSettingsPage from '@/apps/health/pages/HealthSettingsPage'
 export default function App() {
   const { page, subPage, app } = useAppStore()
   const { user, loading, setSyncing, setSyncError, recoveryMode } = useAuthStore()
-  const lastSyncedUser = useRef<string | null>(null)
 
   // PIN lock: lock only after a period of inactivity — a quick page refresh
   // within the window stays unlocked. While open & unlocked we keep a
@@ -65,14 +64,14 @@ export default function App() {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }, [page, subPage])
 
-  // Pull cloud data whenever the logged-in user changes
+  // Pull cloud data whenever the logged-in user changes. pullFromCloudOnce
+  // dedupes per session AND is re-armed by signOut (invalidatePullCache), so a
+  // logout → login in the same tab pulls again — a local ref here would skip
+  // that pull and leave the UI empty until a manual refresh.
   useEffect(() => {
     if (!user || !isSupabaseConfigured) return
-    if (lastSyncedUser.current === user.id) return
-    lastSyncedUser.current = user.id
-
     setSyncing(true)
-    pullFromCloud(user.id)
+    pullFromCloudOnce(user.id)
       .catch((e) => setSyncError(String(e)))
       .finally(() => setSyncing(false))
   }, [user?.id])

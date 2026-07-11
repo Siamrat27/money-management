@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { invalidatePullCache } from '../services/sync'
+import { useAppStore } from './useAppStore'
 import { db } from '../db/db'
 
 interface AuthStore {
@@ -126,6 +127,8 @@ export const useAuthStore = create<AuthStore>((set) => ({
         await db.healthSettings.where('userId').equals(userId).delete()
       })
     }
+    // Forget the chosen app so the next login starts at the app selector
+    useAppStore.getState().setApp(null)
     set({ user: null, session: null })
   },
 }))
