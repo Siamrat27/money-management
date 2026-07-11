@@ -1,8 +1,10 @@
 import { Wallet, Salad, LogOut, Moon, Sun } from 'lucide-react'
-import { useAppStore } from '../stores/useAppStore'
-import { useAuthStore } from '../stores/useAuthStore'
-import { isSupabaseConfigured } from '../lib/supabase'
-import Card from '../components/ui/Card'
+import { APP_VERSION } from '@/version'
+import { useAppStore } from '@/stores/useAppStore'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { isSupabaseConfigured } from '@/lib/supabase'
+import Card from '@/components/ui/Card'
+import PinSettings from '@/components/PinSettings'
 
 // Shown after login when no app has been chosen yet (or after "สลับแอป")
 export default function AppSelector() {
@@ -17,10 +19,11 @@ export default function AppSelector() {
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col justify-center max-w-lg w-full mx-auto px-6 pb-16 stagger">
+      <div className="flex-1 flex flex-col justify-center max-w-lg w-full mx-auto px-6 pb-10 stagger">
         <div className="text-center mb-8">
-          <p className="text-3xl font-bold">เลือกแอปที่ต้องการใช้</p>
-          {user && <p className="text-sm text-gray-400 mt-2">{user.email}</p>}
+          <p className="text-3xl font-bold">Life Management</p>
+          <p className="text-sm text-gray-400 mt-1">เลือกแอปที่ต้องการใช้</p>
+          {user && <p className="text-xs text-gray-400 mt-2">{user.email}</p>}
         </div>
 
         <div className="space-y-4">
@@ -45,14 +48,21 @@ export default function AppSelector() {
           </Card>
         </div>
 
+        {/* Central PIN — locks every app on this device */}
+        <div className="mt-6">
+          <PinSettings />
+        </div>
+
         {isSupabaseConfigured && user && (
           <button
             onClick={signOut}
-            className="mt-10 mx-auto flex items-center gap-1.5 text-sm text-gray-400 active:text-red-500"
+            className="mt-8 mx-auto flex items-center gap-1.5 text-sm text-gray-400 active:text-red-500"
           >
             <LogOut size={15} /> ออกจากระบบ
           </button>
         )}
+
+        <p className="text-center text-xs text-gray-300 dark:text-gray-600 mt-6">Life Management v{APP_VERSION}</p>
       </div>
     </div>
   )

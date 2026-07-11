@@ -38,7 +38,7 @@ export default function PinLock({ onUnlock }: Props) {
         <Lock size={26} />
       </div>
       <p className="font-semibold mb-1">ใส่รหัส PIN</p>
-      <p className="text-xs text-gray-400 mb-6">เพื่อปลดล็อค PocketFlow</p>
+      <p className="text-xs text-gray-400 mb-6">เพื่อเข้าใช้งาน Life Management</p>
 
       {/* Dots */}
       <div className={`flex gap-3 mb-8 ${shake ? 'animate-bounce text-red-500' : ''}`}>

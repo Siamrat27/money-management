@@ -1,0 +1,651 @@
+import { useState, useEffect, useRef } from 'react'
+import { ArrowLeftRight } from 'lucide-react'
+import { format } from 'date-fns'
+import { useAccounts, getAccountBalance, calcBalance } from '@/apps/money/hooks/useAccounts'
+import { useTags } from '@/apps/money/hooks/useTags'
+import { addTransaction, updateTransaction, useTransactions } from '@/apps/money/hooks/useTransactions'
+import { usePresets } from '@/apps/money/hooks/usePresets'
+import type { Preset } from '@/types'
+import { addRecurring } from '@/apps/money/hooks/useRecurring'
+import { useAppStore } from '@/stores/useAppStore'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db } from '@/db/db'
+import Numpad from '@/components/ui/Numpad'
+import AmountDisplay from '@/components/ui/AmountDisplay'
+import Button from '@/components/ui/Button'
+import Header from '@/components/layout/Header'
+import { formatAmount } from '@/utils/formatters'
+import { isUrlIcon } from '@/lib/storage'
+import type { TransactionType, Frequency } from '@/types'
+import { nextDueDate, frequencyLabel } from '@/utils/dateHelpers'
+import { evaluateExpression } from '@/utils/calc'
+import { useUserSettings } from '@/hooks/useSettings'
+import { parseTransactions, DEFAULT_GROQ_MODEL } from '@/lib/groq'
+import type { ParsedTxn } from '@/lib/groq'
+import { isSpeechSupported, startDictation } from '@/lib/speech'
+import { Sparkles, Mic } from 'lucide-react'
+
+const FREQUENCIES: Frequency[] = ['daily', 'weekly', 'monthly', 'yearly']
+
+export default function AddTransaction() {
+  const { setPage, editTransactionId, setEditTransactionId } = useAppStore()
+  const accounts = useAccounts()
+  const tags = useTags()
+  const allTxns = useTransactions()
+  const presets = usePresets()
+
+  const calcBal = (accountId: string) => calcBalance(accountId, allTxns)
+
+  const editTxn = useLiveQuery(
+    () => editTransactionId ? db.transactions.get(editTransactionId) : Promise.resolve(undefined),
+    [editTransactionId]
+  )
+
+  const [type, setType] = useState<TransactionType>('expense')
+  const [amount, setAmount] = useState('0')
+  const [accountId, setAccountId] = useState<string | null>(null)
+  const [toAccountId, setToAccountId] = useState<string | null>(null)
+  const [tagId, setTagId] = useState<string | null>(null)
+  const [note, setNote] = useState('')
+  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [isRecurring, setIsRecurring] = useState(false)
+  const [frequency, setFrequency] = useState<Frequency>('monthly')
+  const [recurringName, setRecurringName] = useState('')
+  const [insufficientFunds, setInsufficientFunds] = useState(false)
+
+  // Tag auto-suggestion from note history: never override a manual pick
+  const tagManuallySet = useRef(false)
+  const [autoTagged, setAutoTagged] = useState(false)
+
+  // Split: one entry across multiple categories → N transactions sharing a group id
+  const [splitMode, setSplitMode] = useState(false)
+  const [splitLines, setSplitLines] = useState<{ tagId: string; amount: string }[]>([
+    { tagId: '', amount: '' },
+    { tagId: '', amount: '' },
+  ])
+  const splitTotal = splitLines.reduce((s, l) => s + (evaluateExpression(l.amount) || 0), 0)
+
+  // AI quick-add (Groq)
+  const userSettings = useUserSettings()
+  const aiEnabled = !!userSettings?.groqApiKey
+  const [aiText, setAiText] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [aiResults, setAiResults] = useState<ParsedTxn[] | null>(null)
+  const [listening, setListening] = useState(false)
+  const stopDictationRef = useRef<(() => void) | null>(null)
+
+  function toggleDictation() {
+    if (listening) { stopDictationRef.current?.(); return }
+    setAiError('')
+    setListening(true)
+    stopDictationRef.current = startDictation(
+      (text) => { setAiText(text); handleAiParse(text) },
+      {
+        onEnd: () => { setListening(false); stopDictationRef.current = null },
+        onError: (err) => { setListening(false); if (err !== 'no-speech' && err !== 'aborted') setAiError('ฟังเสียงไม่ได้ — อนุญาตไมโครโฟนหรือลองใหม่') },
+      },
+    )
+  }
+
+  function resolveAccount(name?: string) {
+    if (!name) return undefined
+    const s = name.trim().toLowerCase()
+    return accounts.find((a) => a.id === name) ?? accounts.find((a) => a.name.toLowerCase() === s)
+  }
+  function resolveTag(name?: string) {
+    if (!name) return undefined
+    const s = name.trim().toLowerCase()
+    return tags.find((t) => t.id === name) ?? tags.find((t) => t.name.toLowerCase() === s)
+  }
+  // Only accept a category whose type matches the action (guard against the LLM
+  // picking a cross-type category)
+  function resolveTagForAction(name: string | undefined, action: ParsedTxn['action']) {
+    const t = resolveTag(name)
+    if (!t || action === 'transfer') return undefined
+    if (action === 'income' && t.type === 'expense') return undefined
+    if (action === 'expense' && t.type === 'income') return undefined
+    return t
+  }
+
+  async function handleAiParse(text = aiText) {
+    if (!text.trim() || !userSettings?.groqApiKey) return
+    setAiBusy(true)
+    setAiError('')
+    setAiResults(null)
+    try {
+      const items = await parseTransactions(
+        userSettings.groqApiKey,
+        userSettings.groqModel || DEFAULT_GROQ_MODEL,
+        text.trim(),
+        {
+          accounts: accounts.filter((a) => !a.archived).map((a) => a.name),
+          expenseCategories: tags.filter((t) => t.type !== 'income').map((t) => t.name),
+          incomeCategories: tags.filter((t) => t.type !== 'expense').map((t) => t.name),
+        },
+      )
+      if (items.length === 0) setAiError('แปลงไม่สำเร็จ ลองพิมพ์ใหม่ให้ชัดขึ้น')
+      else setAiResults(items)
+    } catch (e) {
+      setAiError('เชื่อมต่อ Groq ไม่ได้ — ตรวจ API key ในตั้งค่า')
+      console.error(e)
+    }
+    setAiBusy(false)
+  }
+
+  async function handleAiConfirm() {
+    if (!aiResults) return
+    const now = new Date()
+    for (const it of aiResults) {
+      const acc = resolveAccount(it.account)
+      if (!acc) continue
+      if (it.action === 'transfer') {
+        const to = resolveAccount(it.toAccount)
+        if (!to || to.id === acc.id) continue
+        await addTransaction({ type: 'transfer', amount: it.amount, accountId: acc.id, toAccountId: to.id, note: it.note ?? '', date: now, isRecurring: false })
+      } else {
+        await addTransaction({ type: it.action, amount: it.amount, accountId: acc.id, tagId: resolveTagForAction(it.category, it.action)?.id, note: it.note ?? '', date: now, isRecurring: false })
+      }
+    }
+    setAiText('')
+    setAiResults(null)
+    setPage('dashboard')
+  }
+
+  useEffect(() => {
+    if (accounts.length > 0 && accountId === null) {
+      setAccountId((accounts.find((a) => !a.archived) ?? accounts[0]).id)
+    }
+  }, [accounts])
+
+  useEffect(() => {
+    if (editTxn) {
+      setType(editTxn.type)
+      setAmount(String(editTxn.amount))
+      setAccountId(editTxn.accountId)
+      setToAccountId(editTxn.toAccountId ?? null)
+      setTagId(editTxn.tagId ?? null)
+      setNote(editTxn.note)
+      setDate(format(editTxn.date, 'yyyy-MM-dd'))
+      tagManuallySet.current = true // editing — keep the saved tag
+      setAutoTagged(false)
+    }
+  }, [editTxn])
+
+  // Suggest the tag most often used with similar notes (exact > prefix > contains)
+  useEffect(() => {
+    if (tagManuallySet.current || editTransactionId || type === 'transfer') return
+    const q = note.trim().toLowerCase()
+    if (q.length < 2) return
+    const matches = allTxns.filter((t) => t.type === type && t.tagId && t.note && t.note.toLowerCase().includes(q))
+    if (matches.length === 0) return
+    const scores = new Map<string, number>()
+    for (const m of matches) {
+      const n = m.note.toLowerCase()
+      const s = n === q ? 3 : n.startsWith(q) ? 2 : 1
+      scores.set(m.tagId!, (scores.get(m.tagId!) ?? 0) + s)
+    }
+    const bestId = [...scores.entries()].sort((a, b) => b[1] - a[1])[0][0]
+    const tag = tags.find((t) => t.id === bestId)
+    if (!tag) return
+    if (type === 'income' ? tag.type === 'expense' : tag.type === 'income') return
+    setTagId(bestId)
+    setAutoTagged(true)
+  }, [note, type, allTxns, tags, editTransactionId])
+
+  function applyPreset(p: Preset) {
+    setType(p.type)
+    setAmount(String(p.amount))
+    setAccountId(p.accountId)
+    setToAccountId(p.toAccountId ?? null)
+    setTagId(p.tagId ?? null)
+    setNote(p.note)
+    setInsufficientFunds(false)
+    tagManuallySet.current = true // preset defines its own tag
+    setAutoTagged(false)
+  }
+
+  const filteredTags = tags.filter((t) => type === 'income' ? t.type !== 'expense' : type === 'expense' ? t.type !== 'income' : true)
+
+  // Pickers hide archived accounts, but keep a currently-selected archived one
+  // visible so editing an old transaction on an archived account still works.
+  const accountOptions = accounts.filter((a) => !a.archived || a.id === accountId)
+  const toAccountOptions = accounts.filter((a) => a.id !== accountId && (!a.archived || a.id === toAccountId))
+
+  function resetForm() {
+    setAmount('0')
+    setNote('')
+    setIsRecurring(false)
+    setSplitMode(false)
+    setSplitLines([{ tagId: '', amount: '' }, { tagId: '', amount: '' }])
+    tagManuallySet.current = false
+    setAutoTagged(false)
+  }
+
+  function buildTxnDate(): Date {
+    const now = new Date()
+    const [yr, mo, dy] = date.split('-').map(Number)
+    return new Date(yr, mo - 1, dy, now.getHours(), now.getMinutes(), now.getSeconds())
+  }
+
+  async function handleSaveSplit() {
+    if (!accountId) return
+    const lines = splitLines
+      .map((l) => ({ tagId: l.tagId || undefined, amount: evaluateExpression(l.amount) }))
+      .filter((l) => l.amount > 0)
+    if (lines.length < 2) return // a split needs at least 2 positive lines
+    const total = lines.reduce((s, l) => s + l.amount, 0)
+
+    setInsufficientFunds(false)
+    if (type === 'expense') {
+      const balance = await getAccountBalance(accountId)
+      if (balance - total < 0) { setInsufficientFunds(true); return }
+    }
+
+    const txnDate = buildTxnDate()
+    const splitGroupId = crypto.randomUUID()
+    for (const l of lines) {
+      await addTransaction({
+        type: type as 'income' | 'expense',
+        amount: l.amount, accountId, tagId: l.tagId,
+        note, date: txnDate, isRecurring: false, splitGroupId,
+      })
+    }
+    resetForm()
+    setPage('dashboard')
+  }
+
+  async function handleSave() {
+    if (splitMode && type !== 'transfer' && !editTransactionId) return handleSaveSplit()
+
+    const amt = evaluateExpression(amount)
+    if (!amt || amt <= 0 || !accountId) return
+    // transfer requires a destination account (different from source)
+    if (type === 'transfer' && (!toAccountId || toAccountId === accountId)) return
+
+    setInsufficientFunds(false)
+
+    if ((type === 'expense' || type === 'transfer') && !editTransactionId) {
+      const balance = await getAccountBalance(accountId)
+      if (balance - amt < 0) {
+        setInsufficientFunds(true)
+        return
+      }
+    }
+
+    const now = new Date()
+    const [yr, mo, dy] = date.split('-').map(Number)
+    const txnDate = new Date(yr, mo - 1, dy, now.getHours(), now.getMinutes(), now.getSeconds())
+
+    if (editTransactionId) {
+      await updateTransaction(editTransactionId, {
+        type, amount: amt, accountId,
+        toAccountId: type === 'transfer' ? (toAccountId ?? undefined) : undefined,
+        tagId: tagId ?? undefined, note, date: txnDate,
+      })
+      setEditTransactionId(null)
+    } else {
+      await addTransaction({
+        type, amount: amt, accountId,
+        toAccountId: type === 'transfer' ? (toAccountId ?? undefined) : undefined,
+        tagId: tagId ?? undefined, note, date: txnDate, isRecurring,
+      })
+
+      if (isRecurring && type !== 'transfer') {
+        const start = txnDate
+        await addRecurring({
+          name: recurringName || note || 'รายการต่อเนื่อง',
+          type: type as 'income' | 'expense',
+          amount: amt, accountId,
+          tagId: tagId ?? undefined,
+          frequency, startDate: start,
+          nextDueDate: nextDueDate(start, frequency),
+          isActive: true,
+        })
+      }
+    }
+    resetForm()
+    setPage('dashboard')
+  }
+
+  return (
+    <div className="min-h-screen pb-nav flex flex-col">
+      <Header title={editTransactionId ? 'แก้ไขรายการ' : 'เพิ่มรายการ'} />
+
+      <div className="max-w-lg mx-auto w-full px-4 py-4 flex-1 flex flex-col gap-4">
+        {/* AI quick-add (Groq) */}
+        {aiEnabled && !editTransactionId && (
+          <div className="bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900 rounded-2xl p-3 space-y-2">
+            <div className="flex items-center gap-1.5 text-indigo-500">
+              <Sparkles size={15} />
+              <span className="text-xs font-semibold">พิมพ์ภาษาคน — AI กรอกให้</span>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text" value={aiText}
+                onChange={(e) => { setAiText(e.target.value); setAiError('') }}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAiParse() }}
+                placeholder={listening ? 'กำลังฟัง... พูดได้เลย' : 'เช่น "จ่ายค่าอาหาร 80 เงินสด"'}
+                className="flex-1 min-w-0 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none focus:border-indigo-400"
+              />
+              {isSpeechSupported() && (
+                <button
+                  onClick={toggleDictation}
+                  className={`flex-shrink-0 w-10 rounded-xl flex items-center justify-center ${listening ? 'bg-red-500 text-white animate-pulse' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-indigo-500'}`}
+                  title="พูดแล้วบันทึก"
+                >
+                  <Mic size={18} />
+                </button>
+              )}
+              <Button onClick={() => handleAiParse()} disabled={aiBusy || !aiText.trim()} className="flex-shrink-0">
+                {aiBusy ? '...' : 'แปลง'}
+              </Button>
+            </div>
+            {aiError && <p className="text-xs text-red-500">{aiError}</p>}
+            {aiResults && (
+              <div className="space-y-1.5">
+                {aiResults.map((it, i) => {
+                  const acc = resolveAccount(it.account)
+                  const to = it.action === 'transfer' ? resolveAccount(it.toAccount) : undefined
+                  const tag = resolveTagForAction(it.category, it.action)
+                  const color = it.action === 'income' ? 'text-green-500' : it.action === 'transfer' ? 'text-blue-500' : 'text-red-500'
+                  const sign = it.action === 'income' ? '+' : it.action === 'transfer' ? '' : '-'
+                  const bad = !acc || (it.action === 'transfer' && !to)
+                  return (
+                    <div key={i} className="flex items-center gap-2 text-sm bg-white dark:bg-gray-800 rounded-xl px-3 py-2">
+                      <span className={`font-bold ${color}`}>{sign}฿{formatAmount(it.amount)}</span>
+                      <span className="text-xs text-gray-500 flex-1 truncate">
+                        {it.action === 'transfer'
+                          ? `${acc?.name ?? '?'} → ${to?.name ?? '?'}`
+                          : `${acc?.name ?? '?'}${tag ? ` · ${tag.name}` : ''}`}
+                        {it.note ? ` · ${it.note}` : ''}
+                      </span>
+                      {bad && <span className="text-[10px] text-red-500 flex-shrink-0">ไม่พบบัญชี</span>}
+                    </div>
+                  )
+                })}
+                <div className="flex gap-2 pt-1">
+                  <Button variant="secondary" onClick={() => setAiResults(null)} className="text-sm">ยกเลิก</Button>
+                  <Button fullWidth onClick={handleAiConfirm} className="text-sm">
+                    บันทึก {aiResults.filter((it) => resolveAccount(it.account)).length} รายการ
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Preset Strip */}
+        {presets.length > 0 && (
+          <div>
+            <label className="text-xs text-gray-500 mb-1.5 block">รายการด่วน</label>
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+              {presets.map((p) => {
+                const tag = tags.find((t) => t.id === p.tagId)
+                const acc = accounts.find((a) => a.id === p.accountId)
+                const typeColor = p.type === 'income' ? '#22c55e' : p.type === 'transfer' ? '#3b82f6' : '#ef4444'
+                const defaultIcon = p.type === 'income' ? '💰' : p.type === 'transfer' ? '↔️' : '💸'
+                const sign = p.type === 'income' ? '+' : p.type === 'expense' ? '-' : ''
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => applyPreset(p)}
+                    className="flex-shrink-0 flex flex-col items-center px-3 pt-3 pb-2.5 rounded-xl border border-gray-200 dark:border-gray-700 active:scale-95 transition-all min-w-[76px] relative overflow-hidden bg-white dark:bg-gray-800"
+                  >
+                    <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ backgroundColor: typeColor }} />
+                    <span className="text-2xl leading-none mb-1.5 flex items-center justify-center w-8 h-8">
+                      {tag && isUrlIcon(tag.icon)
+                        ? <img src={tag.icon} className="w-7 h-7 rounded object-cover" alt="" />
+                        : (tag?.icon ?? defaultIcon)}
+                    </span>
+                    <span className="text-xs font-medium text-center leading-tight w-full truncate">{p.name}</span>
+                    <span className="text-xs font-bold mt-0.5" style={{ color: typeColor }}>
+                      {sign}฿{formatAmount(p.amount)}
+                    </span>
+                    {acc && <span className="text-[10px] text-gray-400 mt-0.5 truncate w-full text-center">{acc.name}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Type Selector */}
+        <div className="flex bg-gray-100 dark:bg-gray-800 rounded-2xl p-1 gap-1">
+          {(['expense', 'income', 'transfer'] as TransactionType[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => { setType(t); setTagId(null); tagManuallySet.current = false; setAutoTagged(false); if (t === 'transfer') setSplitMode(false) }}
+              className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                type === t
+                  ? t === 'income' ? 'bg-green-500 text-white'
+                    : t === 'expense' ? 'bg-red-500 text-white'
+                    : 'bg-blue-500 text-white'
+                  : 'text-gray-500'
+              }`}
+            >
+              {t === 'income' ? 'รายรับ' : t === 'expense' ? 'รายจ่าย' : 'โอนเงิน'}
+            </button>
+          ))}
+        </div>
+
+        {/* Amount Display */}
+        <AmountDisplay value={splitMode ? String(splitTotal) : amount} />
+
+        {/* Numpad — hidden in split mode (each line has its own amount) */}
+        {!splitMode && (
+          <Numpad value={amount} onChange={(v) => { setAmount(v); setInsufficientFunds(false) }} />
+        )}
+
+        {/* Fields */}
+        <div className="space-y-3">
+          {/* Account */}
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">บัญชี{type === 'transfer' ? ' (จาก)' : ''}</label>
+            <div className="flex gap-2 flex-wrap">
+              {accountOptions.map((a) => {
+                const bal = calcBal(a.id)
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => setAccountId(a.id)}
+                    className={`flex flex-col items-start px-3 py-2 rounded-xl text-sm font-medium border-2 transition-colors ${
+                      accountId === a.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      {isUrlIcon(a.icon) ? <img src={a.icon} className="w-5 h-5 rounded object-cover flex-shrink-0" alt="" /> : a.icon}
+                      {a.name}
+                    </span>
+                    <span className={`text-xs mt-0.5 ${accountId === a.id ? 'text-indigo-400' : 'text-gray-400'}`}>฿{formatAmount(bal)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* To Account (transfer) */}
+          {type === 'transfer' && (
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block flex items-center gap-1"><ArrowLeftRight size={12} />บัญชีปลายทาง</label>
+              <div className="flex gap-2 flex-wrap">
+                {toAccountOptions.map((a) => {
+                  const bal = calcBal(a.id)
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => setToAccountId(a.id)}
+                      className={`flex flex-col items-start px-3 py-2 rounded-xl text-sm font-medium border-2 transition-colors ${
+                        toAccountId === a.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 text-blue-600' : 'border-gray-200 dark:border-gray-700'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        {isUrlIcon(a.icon) ? <img src={a.icon} className="w-5 h-5 rounded object-cover flex-shrink-0" alt="" /> : a.icon}
+                        {a.name}
+                      </span>
+                      <span className={`text-xs mt-0.5 ${toAccountId === a.id ? 'text-blue-400' : 'text-gray-400'}`}>฿{formatAmount(bal)}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Split toggle (expense/income, new entries only) */}
+          {type !== 'transfer' && !editTransactionId && (
+            <label className="flex items-center gap-3 cursor-pointer">
+              <div
+                onClick={() => setSplitMode((v) => !v)}
+                className={`w-12 h-6 rounded-full transition-colors flex items-center ${splitMode ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+              >
+                <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${splitMode ? 'translate-x-6' : ''}`} />
+              </div>
+              <span className="text-sm font-medium">แยกเป็นหลายหมวด</span>
+            </label>
+          )}
+
+          {/* Tag (single) */}
+          {type !== 'transfer' && !splitMode && (
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">
+                หมวดหมู่
+                {autoTagged && <span className="ml-1.5 text-indigo-400">💡 เลือกให้อัตโนมัติจากบันทึก</span>}
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                {filteredTags.map((tag) => (
+                  <button
+                    key={tag.id}
+                    onClick={() => { setTagId(tagId === tag.id ? null : tag.id); tagManuallySet.current = true; setAutoTagged(false) }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium border-2 transition-colors ${
+                      tagId === tag.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'
+                    }`}
+                    style={tagId === tag.id ? { borderColor: tag.color, backgroundColor: tag.color + '11', color: tag.color } : {}}
+                  >
+                    {isUrlIcon(tag.icon) ? <img src={tag.icon} className="w-5 h-5 rounded object-cover flex-shrink-0" alt="" /> : <span>{tag.icon}</span>}
+                    {tag.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Split editor */}
+          {type !== 'transfer' && splitMode && (
+            <div className="space-y-2">
+              <label className="text-xs text-gray-500 block">แยกหมวดหมู่ (อย่างน้อย 2 รายการ)</label>
+              {splitLines.map((line, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <select
+                    value={line.tagId}
+                    onChange={(e) => setSplitLines((ls) => ls.map((l, j) => j === i ? { ...l, tagId: e.target.value } : l))}
+                    className="flex-1 min-w-0 px-3 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none"
+                  >
+                    <option value="">ไม่ระบุหมวด</option>
+                    {filteredTags.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                  <input
+                    type="number" inputMode="decimal" value={line.amount}
+                    onChange={(e) => { setSplitLines((ls) => ls.map((l, j) => j === i ? { ...l, amount: e.target.value } : l)); setInsufficientFunds(false) }}
+                    placeholder="0"
+                    className="w-24 px-3 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none text-right"
+                  />
+                  {splitLines.length > 2 && (
+                    <button onClick={() => setSplitLines((ls) => ls.filter((_, j) => j !== i))} className="p-1.5 text-gray-400 active:text-red-500 flex-shrink-0">✕</button>
+                  )}
+                </div>
+              ))}
+              <button
+                onClick={() => setSplitLines((ls) => [...ls, { tagId: '', amount: '' }])}
+                className="text-sm text-indigo-500 font-medium"
+              >
+                + เพิ่มหมวด
+              </button>
+              <div className="flex justify-between text-sm pt-1 border-t border-gray-100 dark:border-gray-800">
+                <span className="text-gray-400">รวมทั้งหมด</span>
+                <span className="font-bold">฿{formatAmount(splitTotal)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Note */}
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">บันทึก</label>
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="บันทึกช่วยจำ..."
+              className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none focus:border-indigo-400"
+            />
+          </div>
+
+          {/* Date */}
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">วันที่</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm outline-none focus:border-indigo-400"
+            />
+          </div>
+
+          {/* Recurring */}
+          {type !== 'transfer' && !editTransactionId && !splitMode && (
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div
+                  onClick={() => setIsRecurring((v) => !v)}
+                  className={`w-12 h-6 rounded-full transition-colors flex items-center ${isRecurring ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                >
+                  <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform mx-0.5 ${isRecurring ? 'translate-x-6' : ''}`} />
+                </div>
+                <span className="text-sm font-medium">รายการต่อเนื่อง</span>
+              </label>
+              {isRecurring && (
+                <div className="mt-3 space-y-3">
+                  <input
+                    type="text"
+                    value={recurringName}
+                    onChange={(e) => setRecurringName(e.target.value)}
+                    placeholder="ชื่อรายการต่อเนื่อง..."
+                    className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm outline-none"
+                  />
+                  <div className="flex gap-2 flex-wrap">
+                    {FREQUENCIES.map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setFrequency(f)}
+                        className={`px-3 py-1.5 rounded-xl text-sm font-medium border-2 ${frequency === f ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-600' : 'border-gray-200 dark:border-gray-700'}`}
+                      >
+                        {frequencyLabel(f)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Save Button */}
+        {insufficientFunds && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-2xl text-red-600 dark:text-red-400 text-sm font-medium">
+            <span>⚠️</span>
+            <span>เงินในบัญชีไม่เพียงพอ</span>
+          </div>
+        )}
+        <div className="flex gap-3 mt-2">
+          <Button variant="secondary" onClick={() => { setPage('dashboard'); setEditTransactionId(null) }}>ยกเลิก</Button>
+          <Button
+            fullWidth
+            onClick={handleSave}
+            className={type === 'income' ? '!bg-green-500' : type === 'expense' ? '!bg-red-500' : '!bg-blue-500'}
+          >
+            {editTransactionId ? 'บันทึกการแก้ไข' : 'บันทึก'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}

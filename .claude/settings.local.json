@@ -6,7 +6,8 @@
       "mcp__claude_ai_Supabase__apply_migration",
       "Bash(npx tsc *)",
       "Bash(npm install *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git remote *)"
     ]
   }
 }

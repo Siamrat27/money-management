@@ -120,10 +120,10 @@ export default function Login() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-indigo-500 text-white text-4xl mb-4 shadow-lg shadow-indigo-500/30">
-            💰
+            🌟
           </div>
-          <h1 className="text-2xl font-bold">PocketFlow</h1>
-          <p className="text-gray-400 text-sm mt-1">บันทึกรายรับรายจ่ายส่วนตัว</p>
+          <h1 className="text-2xl font-bold">Life Management</h1>
+          <p className="text-gray-400 text-sm mt-1">จัดการเงิน · สุขภาพ ในที่เดียว</p>
           <p className="text-gray-300 dark:text-gray-600 text-xs mt-0.5">v{APP_VERSION}</p>
         </div>
 

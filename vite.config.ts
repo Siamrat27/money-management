@@ -1,17 +1,21 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  resolve: {
+    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+  },
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'PocketFlow - บันทึกรายรับรายจ่าย',
-        short_name: 'PocketFlow',
-        description: 'แอปออมเงินส่วนตัว บันทึกรายรับรายจ่าย',
+        name: 'Life Management - จัดการชีวิตในที่เดียว',
+        short_name: 'Life Mgmt',
+        description: 'รวมแอปจัดการชีวิต: การเงิน (PocketFlow), สุขภาพ (FitFlow)',
         theme_color: '#6366f1',
         background_color: '#ffffff',
         display: 'standalone',
